@@ -59,6 +59,7 @@ private:
     { REQUESTING_ASSISTANCE,                       VEHICLE_STATE_OK | NEED_ASSISTANCE },
     {          FOLLOW_ROUTE, VEHICLE_STATE_OK | ROUTE_AVAILABLE | LOCAL_MAP_AVAILABLE },
     {      FOLLOW_REFERENCE,            VEHICLE_STATE_OK | REFERENCE_TRAJECTORY_VALID },
+    { MINIMUM_RISK_MANEUVER, VEHICLE_STATE_OK | ROUTE_AVAILABLE | LOCAL_MAP_AVAILABLE },
     {            STANDSTILL,                                         VEHICLE_STATE_OK },
     {        EMERGENCY_STOP,                                                        0 },
   };
@@ -76,6 +77,7 @@ private:
   void remote_operation();
   void safety_corridor();
   void request_assistance();
+  void minimum_risk_maneuver();
 
 
   // TIMER

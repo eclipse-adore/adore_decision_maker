@@ -286,6 +286,34 @@ DecisionMaker::follow_route()
 }
 
 void
+DecisionMaker::minimum_risk_maneuver()
+{
+  dynamics::Trajectory planned_trajectory;
+  map::Route           cut_route = latest_route->get_shortened_route( 100.0 );
+  for( auto& p : cut_route.center_lane )
+  {
+    p.max_speed = 0;
+  }
+  if( use_opti_nlc_route_following )
+  {
+    planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( cut_route, *latest_vehicle_state, *latest_local_map,
+                                                                      latest_traffic_participants.value() );
+  }
+  else
+  {
+    planned_trajectory = lane_follow_planner.plan_trajectory( *latest_vehicle_state, cut_route, *latest_local_map, command_limits );
+  }
+  if( planned_trajectory.states.size() < 2 )
+  {
+    standstill();
+    return;
+  }
+  planned_trajectory.adjust_start_time( latest_vehicle_state->time );
+  planned_trajectory.label = "Minimum Risk Maneuver";
+  publisher_trajectory->publish( dynamics::conversions::to_ros_msg( planned_trajectory ) );
+}
+
+void
 DecisionMaker::safety_corridor()
 {
   dynamics::Trajectory planned_trajectory;
