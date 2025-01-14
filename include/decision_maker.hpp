@@ -107,7 +107,7 @@ private:
   std::optional<dynamics::VehicleStateDynamic>        latest_vehicle_state;
   std::optional<adore_ros2_msgs::msg::SafetyCorridor> latest_safety_corridor;
   std::deque<adore::math::Point2d>                    latest_waypoints;
-  std::optional<dynamics::TrafficParticipantSet>      latest_traffic_participants;
+  dynamics::TrafficParticipantSet      latest_traffic_participants;
 
   bool latest_trajectory_valid();
 

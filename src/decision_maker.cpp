@@ -267,7 +267,7 @@ DecisionMaker::follow_route()
   if( use_opti_nlc_route_following )
   {
     planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( cut_route, *latest_vehicle_state, *latest_local_map,
-                                                                      latest_traffic_participants.value() );
+                                                                      latest_traffic_participants );
   }
   else
   {
