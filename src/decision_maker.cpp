@@ -48,6 +48,10 @@ DecisionMaker::create_subscribers()
                                                                        std::bind( &DecisionMaker::route_callback, this,
                                                                                   std::placeholders::_1 ) );
 
+  subscriber_goal = create_subscription<adore_ros2_msgs::msg::GoalPoint>( "mission/goal_position", 10,
+                                                                          std::bind( &DecisionMaker::goal_callback, this,
+                                                                                     std::placeholders::_1 ) );
+
   subscriber_vehicle_state = create_subscription<adore_ros2_msgs::msg::VehicleStateDynamic>(
     "vehicle_state/dynamic", 1, std::bind( &DecisionMaker::vehicle_state_callback, this, std::placeholders::_1 ) );
 
@@ -108,6 +112,7 @@ DecisionMaker::load_parameters()
   declare_parameter( "planner_settings_values", values );
   get_parameter( "planner_settings_keys", keys );
   get_parameter( "planner_settings_values", values );
+
 
   if( keys.size() != values.size() )
   {
@@ -425,6 +430,13 @@ DecisionMaker::requester_callback( const std_msgs::msg::Bool& msg )
 {
   // should_request_assistance = msg.data;
   // doing_request_assistance  = true;
+}
+
+void
+DecisionMaker::goal_callback( const adore_ros2_msgs::msg::GoalPoint& msg )
+{
+  goal.x = msg.x_position;
+  goal.y = msg.y_position;
 }
 
 void

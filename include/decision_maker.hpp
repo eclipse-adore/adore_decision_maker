@@ -25,6 +25,7 @@
 #include "adore_map_conversions.hpp"
 #include "adore_math/angles.h"
 #include "adore_math/distance.h"
+#include "adore_ros2_msgs/msg/goal_point.hpp"
 #include "adore_ros2_msgs/msg/map.hpp"
 #include "adore_ros2_msgs/msg/route.hpp"
 #include "adore_ros2_msgs/msg/safety_corridor.hpp"
@@ -92,6 +93,7 @@ private:
 
   // SUBSCRIBERS
   rclcpp::Subscription<adore_ros2_msgs::msg::Route>::SharedPtr               subscriber_route;
+  rclcpp::Subscription<adore_ros2_msgs::msg::GoalPoint>::SharedPtr           subscriber_goal;
   rclcpp::Subscription<adore_ros2_msgs::msg::VehicleStateDynamic>::SharedPtr subscriber_vehicle_state;
   rclcpp::Subscription<adore_ros2_msgs::msg::Map>::SharedPtr                 subscriber_local_map;
   rclcpp::Subscription<adore_ros2_msgs::msg::StateMonitor>::SharedPtr        subscriber_state_monitor;
@@ -121,6 +123,7 @@ private:
 
   // CALLBACKS
   void route_callback( const adore_ros2_msgs::msg::Route& msg );
+  void goal_callback( const adore_ros2_msgs::msg::GoalPoint& msg );
   void vehicle_state_callback( const adore_ros2_msgs::msg::VehicleStateDynamic& msg );
   void local_map_callback( const adore_ros2_msgs::msg::Map& msg );
   void safety_corridor_callback( const adore_ros2_msgs::msg::SafetyCorridor& msg );
@@ -129,6 +132,7 @@ private:
   void requester_callback( const std_msgs::msg::Bool& msg );
   void traffic_signals_callback( const adore_ros2_msgs::msg::TrafficSignals& msg );
   void traffic_participants_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg, const std::string& namespace_ );
+
 
   // OTHER MEMBERS
   bool                           default_use_reference_trajectory_as_is = true;
