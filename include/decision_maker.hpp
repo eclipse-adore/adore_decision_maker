@@ -84,23 +84,25 @@ private:
   rclcpp::TimerBase::SharedPtr main_timer;
 
   // PUBLISHERS
-  rclcpp::Publisher<adore_ros2_msgs::msg::Trajectory>::SharedPtr publisher_trajectory;
-  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr            publisher_trajectory_suggestion;
-  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr            publisher_request_assistance_remote_operations;
-  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr            publisher_position_remote_operation;
+  rclcpp::Publisher<adore_ros2_msgs::msg::Trajectory>::SharedPtr         publisher_trajectory;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr                    publisher_trajectory_suggestion;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr                    publisher_request_assistance_remote_operations;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr                    publisher_position_remote_operation;
+  rclcpp::Publisher<adore_ros2_msgs::msg::TrafficParticipant>::SharedPtr publisher_traffic_participant;
 
   // SUBSCRIBERS
-  rclcpp::Subscription<adore_ros2_msgs::msg::Trajectory>::SharedPtr            subscriber_reference_trajectory;
-  rclcpp::Subscription<adore_ros2_msgs::msg::Route>::SharedPtr                 subscriber_route;
-  rclcpp::Subscription<adore_ros2_msgs::msg::VehicleStateDynamic>::SharedPtr   subscriber_vehicle_state;
-  rclcpp::Subscription<adore_ros2_msgs::msg::Map>::SharedPtr                   subscriber_local_map;
-  rclcpp::Subscription<adore_ros2_msgs::msg::StateMonitor>::SharedPtr          subscriber_state_monitor;
-  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr                         subscriber_acknowledgement;
-  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr                         subscriber_help_requested;
-  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr                       subscriber_waypoints;
-  rclcpp::Subscription<adore_ros2_msgs::msg::TrafficSignals>::SharedPtr        subscriber_traffic_signals;
-  rclcpp::Subscription<adore_ros2_msgs::msg::SafetyCorridor>::SharedPtr        subscriber_safety_corridor;
-  rclcpp::Subscription<adore_ros2_msgs::msg::TrafficParticipantSet>::SharedPtr subscriber_traffic_participants;
+  rclcpp::Subscription<adore_ros2_msgs::msg::Route>::SharedPtr               subscriber_route;
+  rclcpp::Subscription<adore_ros2_msgs::msg::VehicleStateDynamic>::SharedPtr subscriber_vehicle_state;
+  rclcpp::Subscription<adore_ros2_msgs::msg::Map>::SharedPtr                 subscriber_local_map;
+  rclcpp::Subscription<adore_ros2_msgs::msg::StateMonitor>::SharedPtr        subscriber_state_monitor;
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr                       subscriber_acknowledgement;
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr                       subscriber_help_requested;
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr                     subscriber_waypoints;
+  rclcpp::Subscription<adore_ros2_msgs::msg::TrafficSignals>::SharedPtr      subscriber_traffic_signals;
+  rclcpp::Subscription<adore_ros2_msgs::msg::SafetyCorridor>::SharedPtr      subscriber_safety_corridor;
+
+  using ParticipantsSubscriber = rclcpp::Subscription<adore_ros2_msgs::msg::TrafficParticipantSet>::SharedPtr;
+  std::unordered_map<std::string, ParticipantsSubscriber> traffic_participant_subscribers;
 
   // LATEST RECEIVED DATA
   std::optional<dynamics::Trajectory>                 latest_reference_trajectory;
@@ -109,9 +111,13 @@ private:
   std::optional<dynamics::VehicleStateDynamic>        latest_vehicle_state;
   std::optional<adore_ros2_msgs::msg::SafetyCorridor> latest_safety_corridor;
   std::deque<adore::math::Point2d>                    latest_waypoints;
-  std::optional<dynamics::TrafficParticipantSet>      latest_traffic_participants;
+
+  dynamics::TrafficParticipantSet traffic_participants;
 
   bool latest_trajectory_valid();
+
+  void publish_traffic_participant();
+  void update_traffic_participant_subscriptions();
 
   // CALLBACKS
   void route_callback( const adore_ros2_msgs::msg::Route& msg );
@@ -121,9 +127,8 @@ private:
   void state_monitor_callback( const adore_ros2_msgs::msg::StateMonitor& msg );
   void waypoints_callback( const std_msgs::msg::String& waypoints );
   void requester_callback( const std_msgs::msg::Bool& msg );
-  void reference_trajectory_callback( const adore_ros2_msgs::msg::Trajectory& msg );
   void traffic_signals_callback( const adore_ros2_msgs::msg::TrafficSignals& msg );
-  void traffic_participants_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg );
+  void traffic_participants_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg, const std::string& namespace_ );
 
   // OTHER MEMBERS
   bool                           default_use_reference_trajectory_as_is = true;
@@ -152,6 +157,9 @@ private:
   void create_subscribers();
   void create_publishers();
   void load_parameters();
+
+  size_t        v2x_id = 1234;
+  math::Point2d goal;
 
 
 public:

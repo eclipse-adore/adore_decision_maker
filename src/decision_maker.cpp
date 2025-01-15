@@ -37,6 +37,7 @@ DecisionMaker::create_publishers()
     = create_publisher<std_msgs::msg::String>( "/MAV/state/modes", 10 ); // Actuall topic name is /MAV/0/states/modes, but ROS doesn´t allow
                                                                          // the 0, so the topic change is done in the mqtt bridge
   publisher_position_remote_operation = create_publisher<std_msgs::msg::String>( "/MAV/state/position", 10 );
+  publisher_traffic_participant       = create_publisher<adore_ros2_msgs::msg::TrafficParticipant>( "traffic_participant", 1 );
 }
 
 void
@@ -55,10 +56,6 @@ DecisionMaker::create_subscribers()
                                                                          std::bind( &DecisionMaker::local_map_callback, this,
                                                                                     std::placeholders::_1 ) );
 
-  // Subscriber for traffic participants
-  subscriber_traffic_participants = create_subscription<adore_ros2_msgs::msg::TrafficParticipantSet>(
-    "traffic_participants", 1, std::bind( &DecisionMaker::traffic_participants_callback, this, std::placeholders::_1 ) );
-
   // Subscribers for safety corridor (either denm or json will be received)
   subscriber_safety_corridor = create_subscription<adore_ros2_msgs::msg::SafetyCorridor>(
     "safety_corridor", 1, std::bind( &DecisionMaker::safety_corridor_callback, this, std::placeholders::_1 ) );
@@ -72,12 +69,6 @@ DecisionMaker::create_subscribers()
   subscriber_waypoints = create_subscription<std_msgs::msg::String>( "/MAV/control/waypoint_suggestion", 1,
                                                                      std::bind( &DecisionMaker::waypoints_callback, this,
                                                                                 std::placeholders::_1 ) );
-
-  subscriber_traffic_participants = create_subscription<adore_ros2_msgs::msg::TrafficParticipantSet>(
-    "traffic_participants", 1, std::bind( &DecisionMaker::traffic_participants_callback, this, std::placeholders::_1 ) );
-
-  subscriber_reference_trajectory = this->create_subscription<adore_ros2_msgs::msg::Trajectory>(
-    "planned_trajectory", 1, std::bind( &DecisionMaker::reference_trajectory_callback, this, std::placeholders::_1 ) );
 
   subscriber_traffic_signals = create_subscription<adore_ros2_msgs::msg::TrafficSignals>(
     "traffic_signals", 1, std::bind( &DecisionMaker::traffic_signals_callback, this, std::placeholders::_1 ) );
@@ -136,6 +127,7 @@ DecisionMaker::load_parameters()
 void
 DecisionMaker::run()
 {
+  update_traffic_participant_subscriptions();
   update_state();
   switch( state )
   {
@@ -166,6 +158,7 @@ DecisionMaker::run()
   {
     print_debug_info();
   }
+  publish_traffic_participant();
 }
 
 void
@@ -267,7 +260,7 @@ DecisionMaker::follow_route()
   if( use_opti_nlc_route_following )
   {
     planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( cut_route, *latest_vehicle_state, *latest_local_map,
-                                                                      latest_traffic_participants.value() );
+                                                                      traffic_participants );
   }
   else
   {
@@ -297,7 +290,7 @@ DecisionMaker::minimum_risk_maneuver()
   if( use_opti_nlc_route_following )
   {
     planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( cut_route, *latest_vehicle_state, *latest_local_map,
-                                                                      latest_traffic_participants.value() );
+                                                                      traffic_participants );
   }
   else
   {
@@ -361,12 +354,6 @@ DecisionMaker::route_callback( const adore_ros2_msgs::msg::Route& msg )
 }
 
 void
-DecisionMaker::reference_trajectory_callback( const adore_ros2_msgs::msg::Trajectory& msg )
-{
-  latest_reference_trajectory = dynamics::conversions::to_cpp_type( msg );
-}
-
-void
 DecisionMaker::traffic_signals_callback( const adore_ros2_msgs::msg::TrafficSignals& msg )
 {
   stopping_points.clear();
@@ -400,9 +387,12 @@ DecisionMaker::safety_corridor_callback( const adore_ros2_msgs::msg::SafetyCorri
 }
 
 void
-DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg )
+DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg, const std::string& namespace_ )
 {
-  latest_traffic_participants = dynamics::conversions::to_cpp_type( msg );
+  auto new_participants_data = dynamics::conversions::to_cpp_type( msg );
+  for( const auto& [id, new_participant] : new_participants_data )
+    dynamics::update_traffic_participants( traffic_participants, new_participant );
+  dynamics::remove_old_participants( traffic_participants, 2.0, now().seconds() );
 }
 
 void
@@ -411,7 +401,6 @@ DecisionMaker::state_monitor_callback( const adore_ros2_msgs::msg::StateMonitor&
   gps_fix_standard_deviation = msg.localization_error;
 }
 
-/** subscribes the alternative path as string*/
 void
 DecisionMaker::waypoints_callback( const std_msgs::msg::String& waypoints )
 {
@@ -502,4 +491,53 @@ DecisionMaker::print_debug_info()
 
   std::cerr << "------- ============================== -------" << std::endl;
 }
+
+void
+DecisionMaker::publish_traffic_participant()
+{
+  if( !latest_vehicle_state )
+    return;
+  dynamics::TrafficParticipant ego_as_participant;
+  ego_as_participant.state          = latest_vehicle_state.value();
+  ego_as_participant.goal_point     = goal;
+  ego_as_participant.id             = v2x_id;
+  ego_as_participant.v2x_id         = v2x_id;
+  ego_as_participant.classification = dynamics::CAR;
+  ego_as_participant.route          = latest_route;
+
+  // TODO GET DIMENSIONS FROM LAUNCH
+  ego_as_participant.bounding_box.length = 3.5;
+  ego_as_participant.bounding_box.width  = 2.0;
+  ego_as_participant.bounding_box.length = 2.0;
+
+  publisher_traffic_participant->publish( dynamics::conversions::to_ros_msg( ego_as_participant ) );
+}
+
+void
+DecisionMaker::update_traffic_participant_subscriptions()
+{
+  auto topic_names_and_types = get_topic_names_and_types();
+  for( const auto& topic : topic_names_and_types )
+  {
+    const std::string& topic_name = topic.first;
+    // Check if the topic name matches the expected pattern for traffic participants
+    if( topic_name.find( "/traffic_participants" ) != std::string::npos )
+    {
+      std::string vehicle_namespace = topic_name.substr( 1, topic_name.find( "/traffic_participants" ) - 1 );
+
+      // Check if already subscribed
+      if( traffic_participant_subscribers.count( vehicle_namespace ) > 0 )
+        continue;
+
+      // Create a new subscription for the traffic participant topic
+      auto subscription = create_subscription<adore_ros2_msgs::msg::TrafficParticipantSet>(
+        topic_name, 1, [this, vehicle_namespace]( const adore_ros2_msgs::msg::TrafficParticipantSet& msg ) {
+          traffic_participants_callback( msg, vehicle_namespace );
+        } );
+
+      traffic_participant_subscribers[vehicle_namespace] = subscription;
+    }
+  }
+}
+
 } // namespace adore
