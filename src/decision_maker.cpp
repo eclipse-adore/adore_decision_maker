@@ -185,6 +185,8 @@ DecisionMaker::update_state()
     current_conditions |= LOCAL_MAP_AVAILABLE;
   if( need_assistance )
     current_conditions |= NEED_ASSISTANCE;
+  if( latest_reference_trajectory )
+    current_conditions |= REFERENCE_TRAJECTORY_VALID;
 
   // Loop through the constexpr array in order of priority
   for( const auto& state_requirement : state_priority )
@@ -398,6 +400,13 @@ DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::Traffi
   for( const auto& [id, new_participant] : new_participants_data )
     dynamics::update_traffic_participants( traffic_participants, new_participant );
   dynamics::remove_old_participants( traffic_participants, 2.0, now().seconds() );
+
+  if( traffic_participants.find( v2x_id ) != traffic_participants.end() && traffic_participants.at( v2x_id ).trajectory )
+  {
+    latest_reference_trajectory = traffic_participants.at( v2x_id ).trajectory;
+  }
+  if( latest_reference_trajectory && now().seconds() - latest_reference_trajectory->states.front().time > 1.0 )
+    latest_reference_trajectory = std::nullopt;
 }
 
 void
