@@ -113,6 +113,8 @@ DecisionMaker::load_parameters()
   get_parameter( "planner_settings_keys", keys );
   get_parameter( "planner_settings_values", values );
 
+  declare_parameter( "v2x_id", 1234 );
+  get_parameter( "v2x_id", v2x_id );
 
   if( keys.size() != values.size() )
   {
