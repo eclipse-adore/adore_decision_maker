@@ -89,6 +89,9 @@ DecisionMaker::load_parameters()
   declare_parameter( "use_reference_trajectory_as_is", true );
   get_parameter( "use_reference_trajectory_as_is", default_use_reference_trajectory_as_is );
 
+  declare_parameter( "only_follow_reference_trajectories", false );
+  get_parameter( "only_follow_reference_trajectories", only_follow_reference_trajectories );
+
   declare_parameter( "optinlc_route_following", false );
   get_parameter( "optinlc_route_following", use_opti_nlc_route_following );
 
@@ -181,7 +184,7 @@ DecisionMaker::update_state()
     current_conditions |= WAYPOINTS_AVAILABLE;
   if( latest_trajectory_valid() )
     current_conditions |= REFERENCE_TRAJECTORY_VALID;
-  if( latest_route )
+  if( latest_route && !only_follow_reference_trajectories )
     current_conditions |= ROUTE_AVAILABLE;
   if( latest_local_map )
     current_conditions |= LOCAL_MAP_AVAILABLE;
