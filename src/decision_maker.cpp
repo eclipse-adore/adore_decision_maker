@@ -542,21 +542,27 @@ DecisionMaker::publish_traffic_participant()
 void
 DecisionMaker::update_traffic_participant_subscriptions()
 {
-  auto topic_names_and_types = get_topic_names_and_types();
+  auto       topic_names_and_types = get_topic_names_and_types();
+  std::regex valid_topic_regex( R"(^/([^/]+)/traffic_participants$)" );
+  std::regex valid_type_regex( R"(^adore_ros2_msgs/msg/TrafficParticipantSet$)" );
+
   for( const auto& topic : topic_names_and_types )
   {
     const std::string&              topic_name = topic.first;
     const std::vector<std::string>& types      = topic.second;
 
-    // Check if the topic name matches the expected pattern for traffic participants
-    if( topic_name.find( "/traffic_participants" ) != std::string::npos
-        && std::find( types.begin(), types.end(), "adore_ros2_msgs/msg/TrafficParticipantSet" ) != types.end() )
+    std::smatch match;
+    if( std::regex_match( topic_name, match, valid_topic_regex )
+        && std::any_of( types.begin(), types.end(),
+                        [&]( const std::string& type ) { return std::regex_match( type, valid_type_regex ); } ) )
     {
-      std::string vehicle_namespace = topic_name.substr( 1, topic_name.find( "/traffic_participants" ) - 1 );
+      std::string vehicle_namespace = match[1].str();
 
       // Check if already subscribed
       if( traffic_participant_subscribers.count( vehicle_namespace ) > 0 )
+      {
         continue;
+      }
 
       // Create a new subscription for the traffic participant topic
       auto subscription = create_subscription<adore_ros2_msgs::msg::TrafficParticipantSet>(
