@@ -542,9 +542,12 @@ DecisionMaker::update_traffic_participant_subscriptions()
   auto topic_names_and_types = get_topic_names_and_types();
   for( const auto& topic : topic_names_and_types )
   {
-    const std::string& topic_name = topic.first;
+    const std::string&              topic_name = topic.first;
+    const std::vector<std::string>& types      = topic.second;
+
     // Check if the topic name matches the expected pattern for traffic participants
-    if( topic_name.find( "/traffic_participants" ) != std::string::npos )
+    if( topic_name.find( "/traffic_participants" ) != std::string::npos
+        && std::find( types.begin(), types.end(), "adore_ros2_msgs/msg/TrafficParticipantSet" ) != types.end() )
     {
       std::string vehicle_namespace = topic_name.substr( 1, topic_name.find( "/traffic_participants" ) - 1 );
 
