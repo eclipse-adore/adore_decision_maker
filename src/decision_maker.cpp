@@ -271,8 +271,10 @@ DecisionMaker::follow_route()
   }
   if( use_opti_nlc_route_following )
   {
+
+    std::cerr << "other participant size : " << non_ego_traffic_participants.size() << std::endl;
     planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( cut_route, *latest_vehicle_state, *latest_local_map,
-                                                                      traffic_participants );
+                                                                      non_ego_traffic_participants );
   }
   else
   {
@@ -302,7 +304,7 @@ DecisionMaker::minimum_risk_maneuver()
   if( use_opti_nlc_route_following )
   {
     planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( cut_route, *latest_vehicle_state, *latest_local_map,
-                                                                      traffic_participants );
+                                                                      non_ego_traffic_participants );
   }
   else
   {
@@ -412,6 +414,10 @@ DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::Traffi
   }
   if( latest_reference_trajectory && now().seconds() - latest_reference_trajectory->states.front().time > 1.0 )
     latest_reference_trajectory = std::nullopt;
+
+  non_ego_traffic_participants = traffic_participants;
+  if( non_ego_traffic_participants.find( v2x_id ) != non_ego_traffic_participants.end() )
+    non_ego_traffic_participants.erase( v2x_id );
 }
 
 void
