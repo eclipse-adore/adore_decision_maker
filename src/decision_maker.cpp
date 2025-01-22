@@ -547,7 +547,7 @@ DecisionMaker::publish_traffic_participant()
   // TODO GET DIMENSIONS FROM LAUNCH
   ego_as_participant.bounding_box.length = 3.5;
   ego_as_participant.bounding_box.width  = 2.0;
-  ego_as_participant.bounding_box.length = 2.0;
+  ego_as_participant.bounding_box.height = 2.0;
 
 
   publisher_traffic_participant->publish( dynamics::conversions::to_ros_msg( ego_as_participant ) );
