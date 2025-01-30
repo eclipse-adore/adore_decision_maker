@@ -225,7 +225,7 @@ DecisionMaker::check_caution_zones()
     return;
   for( const auto& [label, polygon] : caution_zones )
   {
-    if( label == "Request Assistance" && polygon.point_inside( latest_vehicle_state.value() ) )
+    if( label == "Request Assistance" && polygon.point_inside( latest_vehicle_state.value() ) && state != REMOTE_OPERATION )
       need_assistance = true;
   }
 }
