@@ -113,6 +113,26 @@ DecisionMaker::load_parameters()
   declare_parameter( "v2x_id", 1234 );
   get_parameter( "v2x_id", v2x_id );
 
+  std::vector<double> ra_polygon_values; // request assistance polygon
+  declare_parameter( "request_assistance_polygon", std::vector<double>{} );
+  get_parameter( "request_assistance_polygon", ra_polygon_values );
+
+  // Convert the parameter into a Polygon2d
+  if( ra_polygon_values.size() > 6 ) // minimum 3 x, 3 y
+  {
+    adore::math::Polygon2d polygon;
+    polygon.points.reserve( ra_polygon_values.size() / 2 );
+
+    for( size_t i = 0; i < ra_polygon_values.size(); i += 2 )
+    {
+      double x = ra_polygon_values[i];
+      double y = ra_polygon_values[i + 1];
+      polygon.points.push_back( { x, y } );
+    }
+    caution_zones["Request Assistance"] = polygon;
+  }
+
+  // If keys & values mismatch
   if( keys.size() != values.size() )
   {
     RCLCPP_ERROR( this->get_logger(), "planner settings keys and values size mismatch!" );
@@ -168,6 +188,7 @@ DecisionMaker::run()
 void
 DecisionMaker::update_state()
 {
+  check_caution_zones();
   int current_conditions = 0;
   if( gps_fix_standard_deviation < 0.2 && latest_vehicle_state )
     current_conditions |= VEHICLE_STATE_OK;
@@ -194,6 +215,18 @@ DecisionMaker::update_state()
       state = state_requirement.state;
       return;
     }
+  }
+}
+
+void
+DecisionMaker::check_caution_zones()
+{
+  if( !latest_vehicle_state )
+    return;
+  for( const auto& [label, polygon] : caution_zones )
+  {
+    if( label == "Request Assistance" && polygon.point_inside( latest_vehicle_state.value() ) )
+      need_assistance = true;
   }
 }
 

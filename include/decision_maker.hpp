@@ -25,6 +25,7 @@
 #include "adore_map_conversions.hpp"
 #include "adore_math/angles.h"
 #include "adore_math/distance.h"
+#include "adore_math/polygon.h"
 #include "adore_ros2_msgs/msg/assistance_request.hpp"
 #include "adore_ros2_msgs/msg/goal_point.hpp"
 #include "adore_ros2_msgs/msg/map.hpp"
@@ -70,6 +71,9 @@ private:
 
   void run();
   void update_state();
+
+  void check_caution_zones();
+
 
   // State dependent functions
   void emergency_stop();
@@ -171,6 +175,8 @@ private:
 
   size_t        v2x_id = 1234;
   math::Point2d goal;
+
+  std::unordered_map<std::string, math::Polygon2d> caution_zones;
 
 
 public:
