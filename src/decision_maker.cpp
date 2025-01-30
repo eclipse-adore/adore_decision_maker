@@ -32,14 +32,9 @@ void
 DecisionMaker::create_publishers()
 {
   publisher_trajectory                           = create_publisher<adore_ros2_msgs::msg::Trajectory>( "trajectory_decision", 10 );
-  publisher_trajectory_suggestion                = create_publisher<std_msgs::msg::String>( "/MAV/control/RO/path_suggestion", 10 );
-  publisher_request_assistance_remote_operations = create_publisher<std_msgs::msg::String>( "/MAV/state/modes",
-                                                                                            10 ); // Actuall topic name is
-                                                                                                  // /MAV/0/states/modes, but ROS doesn´t
-                                                                                                  // allow the 0, so the topic change is
-                                                                                                  // done in the mqtt bridge
-  publisher_position_remote_operation = create_publisher<std_msgs::msg::String>( "/MAV/state/position", 10 );
-  publisher_traffic_participant       = create_publisher<adore_ros2_msgs::msg::TrafficParticipant>( "traffic_participant", 1 );
+  publisher_trajectory_suggestion                = create_publisher<adore_ros2_msgs::msg::Trajectory>( "trajectory_suggestion", 10 );
+  publisher_request_assistance_remote_operations = create_publisher<adore_ros2_msgs::msg::AssistanceRequest>( "request_assistance", 10 );
+  publisher_traffic_participant                  = create_publisher<adore_ros2_msgs::msg::TrafficParticipant>( "traffic_participant", 1 );
 }
 
 void
@@ -62,18 +57,16 @@ DecisionMaker::create_subscribers()
                                                                          std::bind( &DecisionMaker::local_map_callback, this,
                                                                                     std::placeholders::_1 ) );
 
-  // Subscribers for safety corridor (either denm or json will be received)
   subscriber_safety_corridor = create_subscription<adore_ros2_msgs::msg::SafetyCorridor>(
     "safety_corridor", 1, std::bind( &DecisionMaker::safety_corridor_callback, this, std::placeholders::_1 ) );
 
-  // Subscriber for state monitor
   subscriber_state_monitor = create_subscription<adore_ros2_msgs::msg::StateMonitor>( "vehicle_state/monitor", 1,
                                                                                       std::bind( &DecisionMaker::state_monitor_callback,
                                                                                                  this, std::placeholders::_1 ) );
 
-  subscriber_waypoints = create_subscription<std_msgs::msg::String>( "/MAV/control/waypoint_suggestion", 1,
-                                                                     std::bind( &DecisionMaker::waypoints_callback, this,
-                                                                                std::placeholders::_1 ) );
+  subscriber_waypoints = create_subscription<adore_ros2_msgs::msg::Waypoints>( "remote_operation_waypoints", 1,
+                                                                               std::bind( &DecisionMaker::waypoints_callback, this,
+                                                                                          std::placeholders::_1 ) );
 
   subscriber_traffic_signals = create_subscription<adore_ros2_msgs::msg::TrafficSignals>(
     "traffic_signals", 1, std::bind( &DecisionMaker::traffic_signals_callback, this, std::placeholders::_1 ) );
@@ -180,7 +173,7 @@ DecisionMaker::update_state()
     current_conditions |= VEHICLE_STATE_OK;
   if( latest_safety_corridor )
     current_conditions |= SAFETY_CORRIDOR_PRESENT;
-  if( !latest_waypoints.empty() )
+  if( latest_waypoints.size() > 1 && !need_assistance )
     current_conditions |= WAYPOINTS_AVAILABLE;
   if( latest_trajectory_valid() )
     current_conditions |= REFERENCE_TRAJECTORY_VALID;
@@ -223,14 +216,20 @@ DecisionMaker::standstill()
 void
 DecisionMaker::request_assistance()
 {
-  dynamics::Trajectory standstill_trajectory;
-  standstill_trajectory.label = "Requesting Assistane";
-  publisher_trajectory->publish( dynamics::conversions::to_ros_msg( standstill_trajectory ) );
-  std_msgs::msg::String assistance_request_message;
-  assistance_request_message.data = "{\"current_driving_mode\":1,\"current_control_mode\": 1, "
-                                    "\"general_system_state\":2, \"timestamp\":"
-                                  + std::to_string( (int) ( now().seconds() ) ) + "}"; // change this
-  publisher_request_assistance_remote_operations->publish( assistance_request_message );
+  if( latest_local_map && latest_route && latest_vehicle_state->vx > 0.5 )
+    minimum_risk_maneuver();
+  else
+    standstill();
+
+  if( sent_assistance_request )
+    return;
+
+  adore_ros2_msgs::msg::AssistanceRequest assistance_request;
+  assistance_request.assistance_needed = true;
+  assistance_request.state             = dynamics::conversions::to_ros_msg( latest_vehicle_state.value() );
+  assistance_request.header.stamp      = now();
+
+  sent_assistance_request = true;
 }
 
 void
@@ -353,8 +352,8 @@ DecisionMaker::latest_trajectory_valid()
   if( latest_reference_trajectory->states.size() < 2 )
     return false;
 
-  // if( latest_vehicle_state->time - latest_reference_trajectory->states.front().time > 0.5 )
-  //   return false;
+  if( latest_vehicle_state->time - latest_reference_trajectory->states.front().time > 0.5 )
+    return false;
 
   return true;
 }
@@ -403,13 +402,12 @@ DecisionMaker::safety_corridor_callback( const adore_ros2_msgs::msg::SafetyCorri
 void
 DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg, const std::string& namespace_ )
 {
-  std::cerr << "GOT TRAFFIC PARTICIAPNATS  " << std::endl;
   auto new_participants_data = dynamics::conversions::to_cpp_type( msg );
 
   for( const auto& [id, new_participant] : new_participants_data )
     dynamics::update_traffic_participants( traffic_participants, new_participant );
 
-  dynamics::remove_old_participants( traffic_participants, 2.0, now().seconds() );
+  dynamics::remove_old_participants( traffic_participants, 1.0, now().seconds() );
 
   if( traffic_participants.count( v2x_id ) > 0 && traffic_participants.at( v2x_id ).trajectory )
   {
@@ -427,31 +425,30 @@ DecisionMaker::state_monitor_callback( const adore_ros2_msgs::msg::StateMonitor&
 }
 
 void
-DecisionMaker::waypoints_callback( const std_msgs::msg::String& waypoints )
+DecisionMaker::waypoints_callback( const adore_ros2_msgs::msg::Waypoints& waypoints_msg )
 {
   if( state != REQUESTING_ASSISTANCE )
-  {
     return;
-  }
-  latest_waypoints = deserialize_waypoints_from_json( waypoints.data.c_str() );
-  if( latest_waypoints.empty() )
-  {
-    std::cerr << "ERROR in decision maker remote operations, waypoints "
-                 "received does not contain any values"
-              << std::endl;
-    return;
-  }
-  dynamics::Trajectory  trajectory = planner::waypoints_to_trajectory( *latest_vehicle_state, latest_waypoints, dt, remote_operation_speed,
-                                                                       command_limits );
-  std_msgs::msg::String trajectory_prediction_message = serialize_trajectory_to_json( trajectory );
-  publisher_trajectory_suggestion->publish( trajectory_prediction_message );
+
+  latest_waypoints.clear();
+  std::transform( waypoints_msg.waypoints.begin(), waypoints_msg.waypoints.end(), std::back_inserter( latest_waypoints ),
+                  []( const geometry_msgs::msg::Point& pt ) { return adore::math::Point2d( pt.x, pt.y ); } );
+
+  dynamics::Trajectory trajectory = planner::waypoints_to_trajectory( *latest_vehicle_state, latest_waypoints, dt, remote_operation_speed,
+                                                                      command_limits );
+  publisher_trajectory_suggestion->publish( dynamics::conversions::to_ros_msg( trajectory ) );
+  sent_suggestion = true;
 }
 
 void
-DecisionMaker::requester_callback( const std_msgs::msg::Bool& msg )
+DecisionMaker::suggested_trajectory_acceptance_callback( const std_msgs::msg::Bool& msg )
 {
-  // should_request_assistance = msg.data;
-  // doing_request_assistance  = true;
+  if( msg.data )
+  {
+    need_assistance         = false;
+    sent_suggestion         = false;
+    sent_assistance_request = false;
+  }
 }
 
 void
