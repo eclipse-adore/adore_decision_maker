@@ -71,6 +71,9 @@ DecisionMaker::create_subscribers()
   subscriber_traffic_signals = create_subscription<adore_ros2_msgs::msg::TrafficSignals>(
     "traffic_signals", 1, std::bind( &DecisionMaker::traffic_signals_callback, this, std::placeholders::_1 ) );
 
+  subscriber_suggested_trajectory_acceptance = create_subscription<std_msgs::msg::Bool>(
+    "suggested_trajecory_accepted", 1, std::bind( &DecisionMaker::suggested_trajectory_acceptance_callback, this, std::placeholders::_1 ) );
+
   main_timer = create_wall_timer( std::chrono::milliseconds( static_cast<size_t>( 1000 * dt ) ), std::bind( &DecisionMaker::run, this ) );
 }
 
@@ -225,7 +228,8 @@ DecisionMaker::check_caution_zones()
     return;
   for( const auto& [label, polygon] : caution_zones )
   {
-    if( label == "Request Assistance" && polygon.point_inside( latest_vehicle_state.value() ) && state != REMOTE_OPERATION )
+    if( label == "Request Assistance" && polygon.point_inside( latest_vehicle_state.value() ) && state != REMOTE_OPERATION
+        && state != REQUESTING_ASSISTANCE )
       need_assistance = true;
   }
 }
@@ -254,13 +258,12 @@ DecisionMaker::request_assistance()
   else
     standstill();
 
-  if( sent_assistance_request )
-    return;
-
   adore_ros2_msgs::msg::AssistanceRequest assistance_request;
   assistance_request.assistance_needed = true;
   assistance_request.state             = dynamics::conversions::to_ros_msg( latest_vehicle_state.value() );
   assistance_request.header.stamp      = now();
+
+  publisher_request_assistance_remote_operations->publish( assistance_request );
 
   sent_assistance_request = true;
 }
@@ -475,6 +478,7 @@ DecisionMaker::waypoints_callback( const adore_ros2_msgs::msg::Waypoints& waypoi
 void
 DecisionMaker::suggested_trajectory_acceptance_callback( const std_msgs::msg::Bool& msg )
 {
+  std::cerr << "\n\nAPPROVED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\n" << std::endl;
   if( msg.data )
   {
     need_assistance         = false;
@@ -527,6 +531,9 @@ DecisionMaker::print_debug_info()
   else
     std::cerr << "No Safety Corridor message.\n";
 
+  std::cerr << "waypoints size - " << latest_waypoints.size() << std::endl;
+  std::cerr << "needs assistance " << need_assistance << std::endl;
+
   std::string state_string;
   switch( state )
   {
@@ -549,7 +556,7 @@ DecisionMaker::print_debug_info()
       state_string = "REMOTE OPERATIONS";
       break;
     case REQUESTING_ASSISTANCE:
-      state_string = "REMOTE OPERATIONS";
+      state_string = "REQUESTING ASSISTANCE";
       break;
     default:
       state_string = "UNKNOWN";

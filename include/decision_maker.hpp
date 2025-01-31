@@ -101,11 +101,11 @@ private:
   rclcpp::Subscription<adore_ros2_msgs::msg::VehicleStateDynamic>::SharedPtr subscriber_vehicle_state;
   rclcpp::Subscription<adore_ros2_msgs::msg::Map>::SharedPtr                 subscriber_local_map;
   rclcpp::Subscription<adore_ros2_msgs::msg::StateMonitor>::SharedPtr        subscriber_state_monitor;
-  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr                       subscriber_acknowledgement;
-  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr                       subscriber_help_requested;
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr                       subscriber_suggested_trajectory_acceptance;
   rclcpp::Subscription<adore_ros2_msgs::msg::Waypoints>::SharedPtr           subscriber_waypoints;
   rclcpp::Subscription<adore_ros2_msgs::msg::TrafficSignals>::SharedPtr      subscriber_traffic_signals;
   rclcpp::Subscription<adore_ros2_msgs::msg::SafetyCorridor>::SharedPtr      subscriber_safety_corridor;
+
 
   using ParticipantsSubscriber = rclcpp::Subscription<adore_ros2_msgs::msg::TrafficParticipantSet>::SharedPtr;
   std::unordered_map<std::string, ParticipantsSubscriber> traffic_participant_subscribers;
