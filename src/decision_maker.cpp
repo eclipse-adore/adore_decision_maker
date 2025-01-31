@@ -118,7 +118,7 @@ DecisionMaker::load_parameters()
   get_parameter( "request_assistance_polygon", ra_polygon_values );
 
   // Convert the parameter into a Polygon2d
-  if( ra_polygon_values.size() > 6 ) // minimum 3 x, 3 y
+  if( ra_polygon_values.size() >= 6 ) // minimum 3 x, 3 y
   {
     adore::math::Polygon2d polygon;
     polygon.points.reserve( ra_polygon_values.size() / 2 );
@@ -304,7 +304,6 @@ DecisionMaker::follow_route()
   }
   if( use_opti_nlc_route_following )
   {
-    std::cerr << "other participant size : " << non_ego_traffic_participants.size() << std::endl;
     planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( cut_route, *latest_vehicle_state, *latest_local_map,
                                                                       non_ego_traffic_participants );
   }
@@ -437,18 +436,18 @@ DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::Traffi
 {
   auto new_participants_data = dynamics::conversions::to_cpp_type( msg );
 
-  for( const auto& [id, new_participant] : new_participants_data )
-    dynamics::update_traffic_participants( traffic_participants, new_participant );
+  for( const auto& [id, new_participant] : new_participants_data.participants )
+    traffic_participants.update_traffic_participants( new_participant );
 
-  dynamics::remove_old_participants( traffic_participants, 1.0, now().seconds() );
+  traffic_participants.remove_old_participants( 1.0, now().seconds() );
 
-  if( traffic_participants.count( v2x_id ) > 0 && traffic_participants.at( v2x_id ).trajectory )
+  if( traffic_participants.participants.count( v2x_id ) > 0 && traffic_participants.participants.at( v2x_id ).trajectory )
   {
-    latest_reference_trajectory = traffic_participants.at( v2x_id ).trajectory.value();
+    latest_reference_trajectory = traffic_participants.participants.at( v2x_id ).trajectory.value();
   }
   non_ego_traffic_participants = traffic_participants;
-  if( non_ego_traffic_participants.find( v2x_id ) != non_ego_traffic_participants.end() )
-    non_ego_traffic_participants.erase( v2x_id );
+  if( non_ego_traffic_participants.participants.find( v2x_id ) != non_ego_traffic_participants.participants.end() )
+    non_ego_traffic_participants.participants.erase( v2x_id );
 }
 
 void
