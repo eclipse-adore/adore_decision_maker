@@ -259,12 +259,6 @@ DecisionMaker::request_assistance()
   else
     standstill();
 
-  if( sent_assistance_request ) // only send once
-    return;
-
-  if( publisher_request_assistance_remote_operations->get_subscription_count() == 0 )
-    return;
-
 
   adore_ros2_msgs::msg::AssistanceRequest assistance_request;
   assistance_request.assistance_needed = true;
