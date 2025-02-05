@@ -72,7 +72,8 @@ DecisionMaker::create_subscribers()
     "traffic_signals", 1, std::bind( &DecisionMaker::traffic_signals_callback, this, std::placeholders::_1 ) );
 
   subscriber_suggested_trajectory_acceptance = create_subscription<std_msgs::msg::Bool>(
-    "suggested_trajecory_accepted", 1, std::bind( &DecisionMaker::suggested_trajectory_acceptance_callback, this, std::placeholders::_1 ) );
+    "suggested_trajectory_accepted", 1,
+    std::bind( &DecisionMaker::suggested_trajectory_acceptance_callback, this, std::placeholders::_1 ) );
 
   main_timer = create_wall_timer( std::chrono::milliseconds( static_cast<size_t>( 1000 * dt ) ), std::bind( &DecisionMaker::run, this ) );
 }
@@ -257,6 +258,13 @@ DecisionMaker::request_assistance()
     minimum_risk_maneuver();
   else
     standstill();
+
+  if( sent_assistance_request ) // only send once
+    return;
+
+  if( publisher_request_assistance_remote_operations->get_subscription_count() == 0 )
+    return;
+
 
   adore_ros2_msgs::msg::AssistanceRequest assistance_request;
   assistance_request.assistance_needed = true;
