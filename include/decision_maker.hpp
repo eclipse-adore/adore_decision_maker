@@ -27,6 +27,7 @@
 #include "adore_math/distance.h"
 #include "adore_math/polygon.h"
 #include "adore_ros2_msgs/msg/assistance_request.hpp"
+#include "adore_ros2_msgs/msg/caution_zone.hpp"
 #include "adore_ros2_msgs/msg/goal_point.hpp"
 #include "adore_ros2_msgs/msg/map.hpp"
 #include "adore_ros2_msgs/msg/route.hpp"
@@ -94,6 +95,8 @@ private:
   rclcpp::Publisher<adore_ros2_msgs::msg::Trajectory>::SharedPtr         publisher_trajectory_suggestion;
   rclcpp::Publisher<adore_ros2_msgs::msg::AssistanceRequest>::SharedPtr  publisher_request_assistance_remote_operations;
   rclcpp::Publisher<adore_ros2_msgs::msg::TrafficParticipant>::SharedPtr publisher_traffic_participant;
+  rclcpp::Publisher<adore_ros2_msgs::msg::CautionZone>::SharedPtr        publisher_caution_zones;
+
 
   // SUBSCRIBERS
   rclcpp::Subscription<adore_ros2_msgs::msg::Route>::SharedPtr               subscriber_route;

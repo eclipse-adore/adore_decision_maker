@@ -35,6 +35,8 @@ DecisionMaker::create_publishers()
   publisher_trajectory_suggestion                = create_publisher<adore_ros2_msgs::msg::Trajectory>( "trajectory_suggestion", 10 );
   publisher_request_assistance_remote_operations = create_publisher<adore_ros2_msgs::msg::AssistanceRequest>( "request_assistance", 10 );
   publisher_traffic_participant                  = create_publisher<adore_ros2_msgs::msg::TrafficParticipant>( "traffic_participant", 1 );
+
+  publisher_caution_zones = create_publisher<adore_ros2_msgs::msg::CautionZone>( "caution_zones", 10 );
 }
 
 void
@@ -232,6 +234,10 @@ DecisionMaker::check_caution_zones()
     if( label == "Request Assistance" && polygon.point_inside( latest_vehicle_state.value() ) && state != REMOTE_OPERATION
         && state != REQUESTING_ASSISTANCE )
       need_assistance = true;
+    adore_ros2_msgs::msg::CautionZone caution_zone_msg;
+    caution_zone_msg.label   = label;
+    caution_zone_msg.polygon = math::conversions::to_ros_msg( polygon );
+    publisher_caution_zones->publish( caution_zone_msg );
   }
 }
 
