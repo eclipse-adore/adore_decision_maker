@@ -267,7 +267,6 @@ DecisionMaker::request_assistance()
   else
     standstill();
 
-
   adore_ros2_msgs::msg::AssistanceRequest assistance_request;
   assistance_request.assistance_needed = true;
   assistance_request.state             = dynamics::conversions::to_ros_msg( latest_vehicle_state.value() );
@@ -282,7 +281,7 @@ void
 DecisionMaker::remote_operation()
 {
   dynamics::Trajectory trajectory = planner::waypoints_to_trajectory( *latest_vehicle_state, latest_waypoints, dt, remote_operation_speed,
-                                                                      command_limits );
+                                                                      command_limits, non_ego_traffic_participants );
   trajectory.label                = "Remote Operation";
   publisher_trajectory->publish( dynamics::conversions::to_ros_msg( trajectory ) );
 }
@@ -376,7 +375,8 @@ DecisionMaker::safety_corridor()
     auto   safety_waypoints     = planner::shift_points_right( right_forward_points, 1.5 );
     double target_speed         = planner::is_point_to_right_of_line( *latest_vehicle_state, right_forward_points ) ? 0 : 2.0;
 
-    planned_trajectory = planner::waypoints_to_trajectory( *latest_vehicle_state, safety_waypoints, dt, target_speed, command_limits );
+    planned_trajectory = planner::waypoints_to_trajectory( *latest_vehicle_state, safety_waypoints, dt, target_speed, command_limits,
+                                                           non_ego_traffic_participants );
     planned_trajectory.adjust_start_time( latest_vehicle_state->time );
     if( !default_use_reference_trajectory_as_is )
     {
@@ -480,7 +480,7 @@ DecisionMaker::waypoints_callback( const adore_ros2_msgs::msg::Waypoints& waypoi
                   []( const geometry_msgs::msg::Point& pt ) { return adore::math::Point2d( pt.x, pt.y ); } );
 
   dynamics::Trajectory trajectory = planner::waypoints_to_trajectory( *latest_vehicle_state, latest_waypoints, dt, remote_operation_speed,
-                                                                      command_limits );
+                                                                      command_limits, non_ego_traffic_participants );
   publisher_trajectory_suggestion->publish( dynamics::conversions::to_ros_msg( trajectory ) );
   sent_suggestion = true;
 }
@@ -488,7 +488,9 @@ DecisionMaker::waypoints_callback( const adore_ros2_msgs::msg::Waypoints& waypoi
 void
 DecisionMaker::suggested_trajectory_acceptance_callback( const std_msgs::msg::Bool& msg )
 {
-  std::cerr << "\n\nAPPROVED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\n" << std::endl;
+  std::cerr << "\n\nAPPROVED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+               "!!!!!!!!!!!\n\n"
+            << std::endl;
   if( msg.data )
   {
     need_assistance         = false;
