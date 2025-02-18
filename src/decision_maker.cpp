@@ -488,9 +488,7 @@ DecisionMaker::waypoints_callback( const adore_ros2_msgs::msg::Waypoints& waypoi
 void
 DecisionMaker::suggested_trajectory_acceptance_callback( const std_msgs::msg::Bool& msg )
 {
-  std::cerr << "\n\nAPPROVED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-               "!!!!!!!!!!!\n\n"
-            << std::endl;
+
   if( msg.data )
   {
     need_assistance         = false;
