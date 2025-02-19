@@ -181,6 +181,8 @@ private:
 
   std::unordered_map<std::string, math::Polygon2d> caution_zones;
 
+  dynamics::PhysicalVehicleModel model;
+
 
 public:
 

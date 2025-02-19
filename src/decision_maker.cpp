@@ -83,6 +83,11 @@ DecisionMaker::create_subscribers()
 void
 DecisionMaker::load_parameters()
 {
+  std::string vehicle_model_file;
+  declare_parameter( "vehicle_model_file", "" );
+  get_parameter( "vehicle_model_file", vehicle_model_file );
+  model = dynamics::PhysicalVehicleModel( vehicle_model_file, false );
+
   declare_parameter( "debug_mode_active", true );
   get_parameter( "debug_mode_active", debug_mode_active );
 
@@ -159,8 +164,12 @@ DecisionMaker::run()
 {
   update_traffic_participant_subscriptions();
   update_state();
-  if( latest_vehicle_state )
-    latest_vehicle_state->integrate_up_to_time( now().seconds() );
+  // if( latest_vehicle_state )
+  // {
+  //   dynamics::VehicleCommand last_control( latest_vehicle_state->steering_angle, latest_vehicle_state->ax );
+  //   dynamics::integrate_up_to_time( *latest_vehicle_state, last_control, now().seconds(), model.motion_model );
+  // }
+
   switch( state )
   {
     case FOLLOW_REFERENCE:
@@ -281,7 +290,7 @@ void
 DecisionMaker::remote_operation()
 {
   dynamics::Trajectory trajectory = planner::waypoints_to_trajectory( *latest_vehicle_state, latest_waypoints, dt, remote_operation_speed,
-                                                                      command_limits, non_ego_traffic_participants );
+                                                                      command_limits, non_ego_traffic_participants, model );
   trajectory.label                = "Remote Operation";
   publisher_trajectory->publish( dynamics::conversions::to_ros_msg( trajectory ) );
 }
@@ -376,7 +385,7 @@ DecisionMaker::safety_corridor()
     double target_speed         = planner::is_point_to_right_of_line( *latest_vehicle_state, right_forward_points ) ? 0 : 2.0;
 
     planned_trajectory = planner::waypoints_to_trajectory( *latest_vehicle_state, safety_waypoints, dt, target_speed, command_limits,
-                                                           non_ego_traffic_participants );
+                                                           non_ego_traffic_participants, model );
     planned_trajectory.adjust_start_time( latest_vehicle_state->time );
     if( !default_use_reference_trajectory_as_is )
     {
@@ -480,7 +489,7 @@ DecisionMaker::waypoints_callback( const adore_ros2_msgs::msg::Waypoints& waypoi
                   []( const geometry_msgs::msg::Point& pt ) { return adore::math::Point2d( pt.x, pt.y ); } );
 
   dynamics::Trajectory trajectory = planner::waypoints_to_trajectory( *latest_vehicle_state, latest_waypoints, dt, remote_operation_speed,
-                                                                      command_limits, non_ego_traffic_participants );
+                                                                      command_limits, non_ego_traffic_participants, model );
   publisher_trajectory_suggestion->publish( dynamics::conversions::to_ros_msg( trajectory ) );
   sent_suggestion = true;
 }
