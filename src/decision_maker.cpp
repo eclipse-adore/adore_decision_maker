@@ -316,8 +316,12 @@ DecisionMaker::follow_route()
   }
   if( use_opti_nlc_route_following )
   {
+    double time_headway = 1.5; // time headway parameter
+    /*
+      // TIME HEADWAY CALCULATION //
+    */
     planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( cut_route, *latest_vehicle_state, *latest_local_map,
-                                                                      non_ego_traffic_participants );
+                                                                      non_ego_traffic_participants, time_headway );
   }
   else
   {
@@ -346,8 +350,9 @@ DecisionMaker::minimum_risk_maneuver()
   }
   if( use_opti_nlc_route_following )
   {
-    planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( cut_route, *latest_vehicle_state, *latest_local_map,
-                                                                      non_ego_traffic_participants );
+    double time_headway = 1.5;
+    planned_trajectory  = opti_nlc_trajectory_planner.plan_trajectory( cut_route, *latest_vehicle_state, *latest_local_map,
+                                                                       non_ego_traffic_participants, time_headway );
   }
   else
   {
