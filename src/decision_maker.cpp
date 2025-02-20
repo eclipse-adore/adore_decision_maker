@@ -592,17 +592,13 @@ DecisionMaker::publish_traffic_participant()
   if( !latest_vehicle_state )
     return;
   dynamics::TrafficParticipant ego_as_participant;
-  ego_as_participant.state          = latest_vehicle_state.value();
-  ego_as_participant.goal_point     = goal;
-  ego_as_participant.id             = v2x_id;
-  ego_as_participant.v2x_id         = v2x_id;
-  ego_as_participant.classification = dynamics::CAR;
-  ego_as_participant.route          = latest_route;
-
-  // TODO GET DIMENSIONS FROM LAUNCH
-  ego_as_participant.bounding_box.length = 3.5;
-  ego_as_participant.bounding_box.width  = 2.0;
-  ego_as_participant.bounding_box.height = 2.0;
+  ego_as_participant.state               = latest_vehicle_state.value();
+  ego_as_participant.goal_point          = goal;
+  ego_as_participant.id                  = v2x_id;
+  ego_as_participant.v2x_id              = v2x_id;
+  ego_as_participant.classification      = dynamics::CAR;
+  ego_as_participant.route               = latest_route;
+  ego_as_participant.physical_parameters = model.params;
 
   publisher_traffic_participant->publish( dynamics::conversions::to_ros_msg( ego_as_participant ) );
 }
