@@ -221,8 +221,6 @@ DecisionMaker::update_state()
     current_conditions |= LOCAL_MAP_AVAILABLE;
   if( need_assistance )
     current_conditions |= NEED_ASSISTANCE;
-  if( latest_reference_trajectory )
-    current_conditions |= REFERENCE_TRAJECTORY_VALID;
 
   // Loop through the constexpr array in order of priority
   for( const auto& state_requirement : state_priority )
