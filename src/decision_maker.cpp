@@ -73,6 +73,10 @@ DecisionMaker::create_subscribers()
   subscriber_traffic_signals = create_subscription<adore_ros2_msgs::msg::TrafficSignals>(
     "traffic_signals", 1, std::bind( &DecisionMaker::traffic_signals_callback, this, std::placeholders::_1 ) );
 
+  subscriber_time_headway = create_subscription<std_msgs::msg::Float64>( "time_headway", 1,
+                                                                         std::bind( &DecisionMaker::time_headway_callback, this,
+                                                                                    std::placeholders::_1 ) );
+
   subscriber_suggested_trajectory_acceptance = create_subscription<std_msgs::msg::Bool>(
     "suggested_trajectory_accepted", 1,
     std::bind( &DecisionMaker::suggested_trajectory_acceptance_callback, this, std::placeholders::_1 ) );
@@ -316,7 +320,6 @@ DecisionMaker::follow_route()
   }
   if( use_opti_nlc_route_following )
   {
-    double time_headway = 1.5; // time headway parameter
     /*
       // TIME HEADWAY CALCULATION //
     */
@@ -414,6 +417,12 @@ DecisionMaker::route_callback( const adore_ros2_msgs::msg::Route& msg )
   latest_route = map::conversions::to_cpp_type( msg );
   if( latest_route->center_lane.size() < 2 )
     latest_route = std::nullopt;
+}
+
+void
+DecisionMaker::time_headway_callback( const std_msgs::msg::Float64& msg )
+{
+  time_headway = msg.data;
 }
 
 void
