@@ -25,15 +25,19 @@
 #include "adore_map_conversions.hpp"
 #include "adore_math/angles.h"
 #include "adore_math/distance.h"
+#include "adore_math/polygon.h"
+#include "adore_ros2_msgs/msg/assistance_request.hpp"
+#include "adore_ros2_msgs/msg/caution_zone.hpp"
+#include "adore_ros2_msgs/msg/goal_point.hpp"
 #include "adore_ros2_msgs/msg/map.hpp"
 #include "adore_ros2_msgs/msg/route.hpp"
 #include "adore_ros2_msgs/msg/safety_corridor.hpp"
 #include "adore_ros2_msgs/msg/state_monitor.hpp"
 #include "adore_ros2_msgs/msg/traffic_participant_set.hpp"
 #include "adore_ros2_msgs/msg/traffic_signals.hpp"
+#include "adore_ros2_msgs/msg/waypoints.hpp"
 
 #include "decision_states.hpp"
-#include "json_helpers.hpp"
 #include "planning/lane_follow_planner.hpp"
 #include "planning/optinlc_trajectory_optimizer.hpp"
 #include "planning/optinlc_trajectory_planner.hpp"
@@ -57,8 +61,9 @@ private:
     {       SAFETY_CORRIDOR,               VEHICLE_STATE_OK | SAFETY_CORRIDOR_PRESENT },
     {      REMOTE_OPERATION,                   VEHICLE_STATE_OK | WAYPOINTS_AVAILABLE },
     { REQUESTING_ASSISTANCE,                       VEHICLE_STATE_OK | NEED_ASSISTANCE },
-    {          FOLLOW_ROUTE, VEHICLE_STATE_OK | ROUTE_AVAILABLE | LOCAL_MAP_AVAILABLE },
     {      FOLLOW_REFERENCE,            VEHICLE_STATE_OK | REFERENCE_TRAJECTORY_VALID },
+    {          FOLLOW_ROUTE, VEHICLE_STATE_OK | ROUTE_AVAILABLE | LOCAL_MAP_AVAILABLE },
+    { MINIMUM_RISK_MANEUVER, VEHICLE_STATE_OK | ROUTE_AVAILABLE | LOCAL_MAP_AVAILABLE },
     {            STANDSTILL,                                         VEHICLE_STATE_OK },
     {        EMERGENCY_STOP,                                                        0 },
   };
@@ -68,6 +73,9 @@ private:
   void run();
   void update_state();
 
+  void check_caution_zones();
+
+
   // State dependent functions
   void emergency_stop();
   void follow_reference();
@@ -76,29 +84,34 @@ private:
   void remote_operation();
   void safety_corridor();
   void request_assistance();
+  void minimum_risk_maneuver();
 
 
   // TIMER
   rclcpp::TimerBase::SharedPtr main_timer;
 
   // PUBLISHERS
-  rclcpp::Publisher<adore_ros2_msgs::msg::Trajectory>::SharedPtr publisher_trajectory;
-  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr            publisher_trajectory_suggestion;
-  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr            publisher_request_assistance_remote_operations;
-  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr            publisher_position_remote_operation;
+  rclcpp::Publisher<adore_ros2_msgs::msg::Trajectory>::SharedPtr         publisher_trajectory;
+  rclcpp::Publisher<adore_ros2_msgs::msg::Trajectory>::SharedPtr         publisher_trajectory_suggestion;
+  rclcpp::Publisher<adore_ros2_msgs::msg::AssistanceRequest>::SharedPtr  publisher_request_assistance_remote_operations;
+  rclcpp::Publisher<adore_ros2_msgs::msg::TrafficParticipant>::SharedPtr publisher_traffic_participant;
+  rclcpp::Publisher<adore_ros2_msgs::msg::CautionZone>::SharedPtr        publisher_caution_zones;
+
 
   // SUBSCRIBERS
-  rclcpp::Subscription<adore_ros2_msgs::msg::Trajectory>::SharedPtr            subscriber_reference_trajectory;
-  rclcpp::Subscription<adore_ros2_msgs::msg::Route>::SharedPtr                 subscriber_route;
-  rclcpp::Subscription<adore_ros2_msgs::msg::VehicleStateDynamic>::SharedPtr   subscriber_vehicle_state;
-  rclcpp::Subscription<adore_ros2_msgs::msg::Map>::SharedPtr                   subscriber_local_map;
-  rclcpp::Subscription<adore_ros2_msgs::msg::StateMonitor>::SharedPtr          subscriber_state_monitor;
-  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr                         subscriber_acknowledgement;
-  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr                         subscriber_help_requested;
-  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr                       subscriber_waypoints;
-  rclcpp::Subscription<adore_ros2_msgs::msg::TrafficSignals>::SharedPtr        subscriber_traffic_signals;
-  rclcpp::Subscription<adore_ros2_msgs::msg::SafetyCorridor>::SharedPtr        subscriber_safety_corridor;
-  rclcpp::Subscription<adore_ros2_msgs::msg::TrafficParticipantSet>::SharedPtr subscriber_traffic_participants;
+  rclcpp::Subscription<adore_ros2_msgs::msg::Route>::SharedPtr               subscriber_route;
+  rclcpp::Subscription<adore_ros2_msgs::msg::GoalPoint>::SharedPtr           subscriber_goal;
+  rclcpp::Subscription<adore_ros2_msgs::msg::VehicleStateDynamic>::SharedPtr subscriber_vehicle_state;
+  rclcpp::Subscription<adore_ros2_msgs::msg::Map>::SharedPtr                 subscriber_local_map;
+  rclcpp::Subscription<adore_ros2_msgs::msg::StateMonitor>::SharedPtr        subscriber_state_monitor;
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr                       subscriber_suggested_trajectory_acceptance;
+  rclcpp::Subscription<adore_ros2_msgs::msg::Waypoints>::SharedPtr           subscriber_waypoints;
+  rclcpp::Subscription<adore_ros2_msgs::msg::TrafficSignals>::SharedPtr      subscriber_traffic_signals;
+  rclcpp::Subscription<adore_ros2_msgs::msg::SafetyCorridor>::SharedPtr      subscriber_safety_corridor;
+
+
+  using ParticipantsSubscriber = rclcpp::Subscription<adore_ros2_msgs::msg::TrafficParticipantSet>::SharedPtr;
+  std::unordered_map<std::string, ParticipantsSubscriber> traffic_participant_subscribers;
 
   // LATEST RECEIVED DATA
   std::optional<dynamics::Trajectory>                 latest_reference_trajectory;
@@ -107,24 +120,32 @@ private:
   std::optional<dynamics::VehicleStateDynamic>        latest_vehicle_state;
   std::optional<adore_ros2_msgs::msg::SafetyCorridor> latest_safety_corridor;
   std::deque<adore::math::Point2d>                    latest_waypoints;
-  dynamics::TrafficParticipantSet      latest_traffic_participants;
+
+  dynamics::TrafficParticipantSet traffic_participants;
+  dynamics::TrafficParticipantSet non_ego_traffic_participants;
+
 
   bool latest_trajectory_valid();
 
+  void publish_traffic_participant();
+  void update_traffic_participant_subscriptions();
+
   // CALLBACKS
   void route_callback( const adore_ros2_msgs::msg::Route& msg );
+  void goal_callback( const adore_ros2_msgs::msg::GoalPoint& msg );
   void vehicle_state_callback( const adore_ros2_msgs::msg::VehicleStateDynamic& msg );
   void local_map_callback( const adore_ros2_msgs::msg::Map& msg );
   void safety_corridor_callback( const adore_ros2_msgs::msg::SafetyCorridor& msg );
   void state_monitor_callback( const adore_ros2_msgs::msg::StateMonitor& msg );
-  void waypoints_callback( const std_msgs::msg::String& waypoints );
-  void requester_callback( const std_msgs::msg::Bool& msg );
-  void reference_trajectory_callback( const adore_ros2_msgs::msg::Trajectory& msg );
+  void waypoints_callback( const adore_ros2_msgs::msg::Waypoints& waypoints );
+  void suggested_trajectory_acceptance_callback( const std_msgs::msg::Bool& msg );
   void traffic_signals_callback( const adore_ros2_msgs::msg::TrafficSignals& msg );
-  void traffic_participants_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg );
+  void traffic_participants_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg, const std::string& namespace_ );
+
 
   // OTHER MEMBERS
   bool                           default_use_reference_trajectory_as_is = true;
+  bool                           only_follow_reference_trajectories     = false;
   double                         dt                                     = 0.05;
   double                         remote_operation_speed                 = 2.0;
   dynamics::VehicleCommandLimits command_limits                         = { 0.7, -2.0, 2.0 };
@@ -138,8 +159,12 @@ private:
 
   planner::LaneFollowPlanner lane_follow_planner;
 
-  bool need_assistance = false;
+  // remote operations
+  bool need_assistance         = false;
+  bool sent_suggestion         = false;
+  bool sent_assistance_request = false;
 
+  // intermediate solution for traffic lights
   std::vector<adore::math::Point2d> stopping_points;
 
   double gps_fix_standard_deviation = 99999;
@@ -150,6 +175,13 @@ private:
   void create_subscribers();
   void create_publishers();
   void load_parameters();
+
+  size_t        v2x_id = 1234;
+  math::Point2d goal;
+
+  std::unordered_map<std::string, math::Polygon2d> caution_zones;
+
+  dynamics::PhysicalVehicleModel model;
 
 
 public:
