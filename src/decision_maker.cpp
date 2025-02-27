@@ -77,6 +77,11 @@ DecisionMaker::create_subscribers()
     "suggested_trajectory_accepted", 1,
     std::bind( &DecisionMaker::suggested_trajectory_acceptance_callback, this, std::placeholders::_1 ) );
 
+
+  subscriber_time_headway = create_subscription<std_msgs::msg::Float64>( "time_headway", 1,
+                                                                         std::bind( &DecisionMaker::time_headway_callback, this,
+                                                                                    std::placeholders::_1 ) );
+
   main_timer = create_wall_timer( std::chrono::milliseconds( static_cast<size_t>( 1000 * dt ) ), std::bind( &DecisionMaker::run, this ) );
 }
 
@@ -509,6 +514,15 @@ DecisionMaker::goal_callback( const adore_ros2_msgs::msg::GoalPoint& msg )
 {
   goal.x = msg.x_position;
   goal.y = msg.y_position;
+}
+
+void
+DecisionMaker::time_headway_callback( const std_msgs::msg::Float64& msg )
+{
+  double                        time_headway = msg.data;
+  std::map<std::string, double> params;
+  params["desired_time_headway"] = time_headway;
+  opti_nlc_trajectory_planner.set_parameters( params );
 }
 
 void
