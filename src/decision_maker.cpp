@@ -501,12 +501,9 @@ void
 DecisionMaker::suggested_trajectory_acceptance_callback( const std_msgs::msg::Bool& msg )
 {
 
-  if( msg.data )
-  {
-    need_assistance         = false;
-    sent_suggestion         = false;
-    sent_assistance_request = false;
-  }
+  need_assistance         = !msg.data;
+  sent_suggestion         = false;
+  sent_assistance_request = false;
 }
 
 void
