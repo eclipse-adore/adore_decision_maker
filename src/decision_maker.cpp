@@ -500,7 +500,8 @@ DecisionMaker::waypoints_callback( const adore_ros2_msgs::msg::Waypoints& waypoi
 void
 DecisionMaker::suggested_trajectory_acceptance_callback( const std_msgs::msg::Bool& msg )
 {
-
+  if( !( state == REQUESTING_ASSISTANCE || state == REMOTE_OPERATION ) )
+    return;
   need_assistance         = !msg.data;
   sent_suggestion         = false;
   sent_assistance_request = false;
