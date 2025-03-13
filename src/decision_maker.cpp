@@ -461,7 +461,7 @@ DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::Traffi
 
   traffic_participants.remove_old_participants( 1.0, now().seconds() );
 
-  if( traffic_participants.participants.count( v2x_id ) > 0 && traffic_participants.participants.at( v2x_id ).trajectory )
+  if( v2x_id > 10 && traffic_participants.participants.count( v2x_id ) > 0 && traffic_participants.participants.at( v2x_id ).trajectory )
   {
     latest_reference_trajectory = traffic_participants.participants.at( v2x_id ).trajectory.value();
   }
