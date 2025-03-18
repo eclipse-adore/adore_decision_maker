@@ -314,8 +314,10 @@ void
 DecisionMaker::follow_route()
 {
   dynamics::Trajectory planned_trajectory;
-  map::Route           cut_route = latest_route->get_shortened_route( 100.0 );
-  for( auto& p : cut_route.center_lane )
+  double               state_s = latest_route->get_s( latest_vehicle_state.value() );
+  std::cerr << state_s << "     - --------- state s" << std::endl;
+  auto cut_route = latest_route->get_shortened_route( state_s, 100.0 );
+  for( auto& p : cut_route )
   {
     if( std::any_of( stopping_points.begin(), stopping_points.end(),
                      [&]( const auto& s ) { return adore::math::distance_2d( s, p ) < 3.0; } ) )
@@ -323,7 +325,7 @@ DecisionMaker::follow_route()
   }
   if( use_opti_nlc_route_following )
   {
-    planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( cut_route, *latest_vehicle_state, *latest_local_map,
+    planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
                                                                       non_ego_traffic_participants );
   }
   else
@@ -346,14 +348,15 @@ void
 DecisionMaker::minimum_risk_maneuver()
 {
   dynamics::Trajectory planned_trajectory;
-  map::Route           cut_route = latest_route->get_shortened_route( 100.0 );
-  for( auto& p : cut_route.center_lane )
+  double               state_s   = latest_route->get_s( latest_vehicle_state.value() );
+  auto                 cut_route = latest_route->get_shortened_route( state_s, 100.0 );
+  for( auto& p : cut_route )
   {
     p.max_speed = 0;
   }
   if( use_opti_nlc_route_following )
   {
-    planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( cut_route, *latest_vehicle_state, *latest_local_map,
+    planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
                                                                       non_ego_traffic_participants );
   }
   else
@@ -416,6 +419,8 @@ DecisionMaker::route_callback( const adore_ros2_msgs::msg::Route& msg )
   latest_route = map::conversions::to_cpp_type( msg );
   if( latest_route->center_lane.size() < 2 )
     latest_route = std::nullopt;
+  if( latest_local_map )
+    latest_route->map = std::make_shared<map::Map>( latest_local_map.value() );
 }
 
 void
