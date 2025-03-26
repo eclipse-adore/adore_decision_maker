@@ -15,6 +15,7 @@
  ********************************************************************************/
 
 #include "decision_maker.hpp"
+#include "adore_ros2_msgs/msg/traffic_participant_set.hpp"
 
 namespace adore
 {
@@ -34,7 +35,6 @@ DecisionMaker::create_publishers()
   publisher_trajectory                           = create_publisher<adore_ros2_msgs::msg::Trajectory>( "trajectory_decision", 10 );
   publisher_trajectory_suggestion                = create_publisher<adore_ros2_msgs::msg::Trajectory>( "trajectory_suggestion", 10 );
   publisher_request_assistance_remote_operations = create_publisher<adore_ros2_msgs::msg::AssistanceRequest>( "request_assistance", 10 );
-  publisher_traffic_participant                  = create_publisher<adore_ros2_msgs::msg::TrafficParticipant>( "traffic_participant", 1 );
 
   publisher_caution_zones = create_publisher<adore_ros2_msgs::msg::CautionZone>( "caution_zones", 10 );
 }
@@ -76,6 +76,9 @@ DecisionMaker::create_subscribers()
   subscriber_suggested_trajectory_acceptance = create_subscription<std_msgs::msg::Bool>(
     "suggested_trajectory_accepted", 1,
     std::bind( &DecisionMaker::suggested_trajectory_acceptance_callback, this, std::placeholders::_1 ) );
+
+  subscriber_traffic_participant_set = create_subscription<adore_ros2_msgs::msg::TrafficParticipantSet>(
+    "traffic_participants", 1, std::bind( &DecisionMaker::traffic_participants_callback, this, std::placeholders::_1 ) );
 
   main_timer = create_wall_timer( std::chrono::milliseconds( static_cast<size_t>( 1000 * dt ) ), std::bind( &DecisionMaker::run, this ) );
 }
@@ -162,7 +165,6 @@ DecisionMaker::load_parameters()
 void
 DecisionMaker::run()
 {
-  update_traffic_participant_subscriptions();
   update_state();
   // if( latest_vehicle_state )
   // {
@@ -199,7 +201,6 @@ DecisionMaker::run()
   {
     print_debug_info();
   }
-  publish_traffic_participant();
 }
 
 void
@@ -457,7 +458,7 @@ DecisionMaker::safety_corridor_callback( const adore_ros2_msgs::msg::SafetyCorri
 }
 
 void
-DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg, const std::string& /*namespace*/ )
+DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg)
 {
   auto new_participants_data = dynamics::conversions::to_cpp_type( msg );
 
@@ -592,57 +593,6 @@ DecisionMaker::print_debug_info()
   std::cerr << "------- ============================== -------" << std::endl;
 }
 
-void
-DecisionMaker::publish_traffic_participant()
-{
-  if( !latest_vehicle_state )
-    return;
-  dynamics::TrafficParticipant ego_as_participant;
-  ego_as_participant.state               = latest_vehicle_state.value();
-  ego_as_participant.goal_point          = goal;
-  ego_as_participant.id                  = v2x_id;
-  ego_as_participant.v2x_id              = v2x_id;
-  ego_as_participant.classification      = dynamics::CAR;
-  ego_as_participant.route               = latest_route;
-  ego_as_participant.physical_parameters = model.params;
 
-  publisher_traffic_participant->publish( dynamics::conversions::to_ros_msg( ego_as_participant ) );
-}
-
-void
-DecisionMaker::update_traffic_participant_subscriptions()
-{
-  auto       topic_names_and_types = get_topic_names_and_types();
-  std::regex valid_topic_regex( R"(^/([^/]+)/traffic_participants$)" );
-  std::regex valid_type_regex( R"(^adore_ros2_msgs/msg/TrafficParticipantSet$)" );
-
-  for( const auto& topic : topic_names_and_types )
-  {
-    const std::string&              topic_name = topic.first;
-    const std::vector<std::string>& types      = topic.second;
-
-    std::smatch match;
-    if( std::regex_match( topic_name, match, valid_topic_regex )
-        && std::any_of( types.begin(), types.end(),
-                        [&]( const std::string& type ) { return std::regex_match( type, valid_type_regex ); } ) )
-    {
-      std::string vehicle_namespace = match[1].str();
-
-      // Check if already subscribed
-      if( traffic_participant_subscribers.count( vehicle_namespace ) > 0 )
-      {
-        continue;
-      }
-
-      // Create a new subscription for the traffic participant topic
-      auto subscription = create_subscription<adore_ros2_msgs::msg::TrafficParticipantSet>(
-        topic_name, 1, [this, vehicle_namespace]( const adore_ros2_msgs::msg::TrafficParticipantSet& msg ) {
-          traffic_participants_callback( msg, vehicle_namespace );
-        } );
-
-      traffic_participant_subscribers[vehicle_namespace] = subscription;
-    }
-  }
-}
 
 } // namespace adore

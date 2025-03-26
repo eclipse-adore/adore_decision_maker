@@ -94,7 +94,6 @@ private:
   rclcpp::Publisher<adore_ros2_msgs::msg::Trajectory>::SharedPtr         publisher_trajectory;
   rclcpp::Publisher<adore_ros2_msgs::msg::Trajectory>::SharedPtr         publisher_trajectory_suggestion;
   rclcpp::Publisher<adore_ros2_msgs::msg::AssistanceRequest>::SharedPtr  publisher_request_assistance_remote_operations;
-  rclcpp::Publisher<adore_ros2_msgs::msg::TrafficParticipant>::SharedPtr publisher_traffic_participant;
   rclcpp::Publisher<adore_ros2_msgs::msg::CautionZone>::SharedPtr        publisher_caution_zones;
 
 
@@ -108,10 +107,8 @@ private:
   rclcpp::Subscription<adore_ros2_msgs::msg::Waypoints>::SharedPtr           subscriber_waypoints;
   rclcpp::Subscription<adore_ros2_msgs::msg::TrafficSignals>::SharedPtr      subscriber_traffic_signals;
   rclcpp::Subscription<adore_ros2_msgs::msg::SafetyCorridor>::SharedPtr      subscriber_safety_corridor;
+  rclcpp::Subscription<adore_ros2_msgs::msg::TrafficParticipantSet>::SharedPtr      subscriber_traffic_participant_set;
 
-
-  using ParticipantsSubscriber = rclcpp::Subscription<adore_ros2_msgs::msg::TrafficParticipantSet>::SharedPtr;
-  std::unordered_map<std::string, ParticipantsSubscriber> traffic_participant_subscribers;
 
   // LATEST RECEIVED DATA
   std::optional<dynamics::Trajectory>                 latest_reference_trajectory;
@@ -127,9 +124,6 @@ private:
 
   bool latest_trajectory_valid();
 
-  void publish_traffic_participant();
-  void update_traffic_participant_subscriptions();
-
   // CALLBACKS
   void route_callback( const adore_ros2_msgs::msg::Route& msg );
   void goal_callback( const adore_ros2_msgs::msg::GoalPoint& msg );
@@ -140,7 +134,7 @@ private:
   void waypoints_callback( const adore_ros2_msgs::msg::Waypoints& waypoints );
   void suggested_trajectory_acceptance_callback( const std_msgs::msg::Bool& msg );
   void traffic_signals_callback( const adore_ros2_msgs::msg::TrafficSignals& msg );
-  void traffic_participants_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg, const std::string& namespace_ );
+  void traffic_participants_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg);
 
 
   // OTHER MEMBERS
