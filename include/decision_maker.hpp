@@ -47,6 +47,7 @@
 #include "sensor_msgs/msg/nav_sat_fix.hpp"
 #include "std_msgs/msg/bool.hpp"
 #include "std_msgs/msg/string.hpp"
+#include "adore_ros2_msgs/msg/vehicle_info.hpp"
 
 namespace adore
 {
@@ -102,7 +103,7 @@ private:
   rclcpp::Subscription<adore_ros2_msgs::msg::GoalPoint>::SharedPtr           subscriber_goal;
   rclcpp::Subscription<adore_ros2_msgs::msg::VehicleStateDynamic>::SharedPtr subscriber_vehicle_state;
   rclcpp::Subscription<adore_ros2_msgs::msg::Map>::SharedPtr                 subscriber_local_map;
-  rclcpp::Subscription<adore_ros2_msgs::msg::StateMonitor>::SharedPtr        subscriber_state_monitor;
+  rclcpp::Subscription<adore_ros2_msgs::msg::VehicleInfo>::SharedPtr         subscriber_vehicle_info;
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr                       subscriber_suggested_trajectory_acceptance;
   rclcpp::Subscription<adore_ros2_msgs::msg::Waypoints>::SharedPtr           subscriber_waypoints;
   rclcpp::Subscription<adore_ros2_msgs::msg::TrafficSignals>::SharedPtr      subscriber_traffic_signals;
@@ -130,7 +131,7 @@ private:
   void vehicle_state_callback( const adore_ros2_msgs::msg::VehicleStateDynamic& msg );
   void local_map_callback( const adore_ros2_msgs::msg::Map& msg );
   void safety_corridor_callback( const adore_ros2_msgs::msg::SafetyCorridor& msg );
-  void state_monitor_callback( const adore_ros2_msgs::msg::StateMonitor& msg );
+  void vehicle_info_callback( const adore_ros2_msgs::msg::VehicleInfo& msg );
   void waypoints_callback( const adore_ros2_msgs::msg::Waypoints& waypoints );
   void suggested_trajectory_acceptance_callback( const std_msgs::msg::Bool& msg );
   void traffic_signals_callback( const adore_ros2_msgs::msg::TrafficSignals& msg );
@@ -170,7 +171,7 @@ private:
   void create_publishers();
   void load_parameters();
 
-  size_t        v2x_id = 1234;
+  std::optional<size_t> v2x_id;
   math::Point2d goal;
 
   std::unordered_map<std::string, math::Polygon2d> caution_zones;

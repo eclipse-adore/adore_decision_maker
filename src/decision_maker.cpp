@@ -16,6 +16,7 @@
 
 #include "decision_maker.hpp"
 #include "adore_ros2_msgs/msg/traffic_participant_set.hpp"
+#include "adore_ros2_msgs/msg/vehicle_info.hpp"
 
 namespace adore
 {
@@ -62,9 +63,8 @@ DecisionMaker::create_subscribers()
   subscriber_safety_corridor = create_subscription<adore_ros2_msgs::msg::SafetyCorridor>(
     "safety_corridor", 1, std::bind( &DecisionMaker::safety_corridor_callback, this, std::placeholders::_1 ) );
 
-  subscriber_state_monitor = create_subscription<adore_ros2_msgs::msg::StateMonitor>( "vehicle_state/monitor", 1,
-                                                                                      std::bind( &DecisionMaker::state_monitor_callback,
-                                                                                                 this, std::placeholders::_1 ) );
+  subscriber_vehicle_info = create_subscription<adore_ros2_msgs::msg::VehicleInfo>(
+    "vehicle_info", 1, std::bind( &DecisionMaker::vehicle_info_callback, this, std::placeholders::_1 ) );
 
   subscriber_waypoints = create_subscription<adore_ros2_msgs::msg::Waypoints>( "remote_operation_waypoints", 1,
                                                                                std::bind( &DecisionMaker::waypoints_callback, this,
@@ -123,9 +123,6 @@ DecisionMaker::load_parameters()
   declare_parameter( "planner_settings_values", values );
   get_parameter( "planner_settings_keys", keys );
   get_parameter( "planner_settings_values", values );
-
-  declare_parameter( "v2x_id", 1234 );
-  get_parameter( "v2x_id", v2x_id );
 
   std::vector<double> ra_polygon_values; // request assistance polygon
   declare_parameter( "request_assistance_polygon", std::vector<double>{} );
@@ -467,18 +464,29 @@ DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::Traffi
 
   traffic_participants.remove_old_participants( 1.0, now().seconds() );
 
-  if( v2x_id > 10 && traffic_participants.participants.count( v2x_id ) > 0 && traffic_participants.participants.at( v2x_id ).trajectory )
+  if ( v2x_id.has_value() )
   {
-    latest_reference_trajectory = traffic_participants.participants.at( v2x_id ).trajectory.value();
+    if( v2x_id.value() > 10 && traffic_participants.participants.count( v2x_id.value() ) > 0 && traffic_participants.participants.at( v2x_id.value() ).trajectory )
+    {
+      latest_reference_trajectory = traffic_participants.participants.at( v2x_id.value() ).trajectory.value();
+    }
+
   }
+
+
   non_ego_traffic_participants = traffic_participants;
-  if( non_ego_traffic_participants.participants.find( v2x_id ) != non_ego_traffic_participants.participants.end() )
-    non_ego_traffic_participants.participants.erase( v2x_id );
+
+  if ( v2x_id.has_value() )
+  {
+    if( non_ego_traffic_participants.participants.find( v2x_id.value() ) != non_ego_traffic_participants.participants.end() )
+      non_ego_traffic_participants.participants.erase( v2x_id.value() );
+  }
 }
 
 void
-DecisionMaker::state_monitor_callback( const adore_ros2_msgs::msg::StateMonitor& msg )
+DecisionMaker::vehicle_info_callback( const adore_ros2_msgs::msg::VehicleInfo& msg )
 {
+  v2x_id = msg.v2x_station_id;
   gps_fix_standard_deviation = msg.localization_error;
 }
 
