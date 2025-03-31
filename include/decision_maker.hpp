@@ -109,6 +109,7 @@ private:
   rclcpp::Subscription<adore_ros2_msgs::msg::TrafficSignals>::SharedPtr      subscriber_traffic_signals;
   rclcpp::Subscription<adore_ros2_msgs::msg::SafetyCorridor>::SharedPtr      subscriber_safety_corridor;
   rclcpp::Subscription<adore_ros2_msgs::msg::TrafficParticipantSet>::SharedPtr      subscriber_traffic_participant_set;
+  rclcpp::Subscription<adore_ros2_msgs::msg::TrafficParticipantSet>::SharedPtr      subscriber_infrastructure_traffic_participants;
 
 
   // LATEST RECEIVED DATA
@@ -118,9 +119,9 @@ private:
   std::optional<dynamics::VehicleStateDynamic>        latest_vehicle_state;
   std::optional<adore_ros2_msgs::msg::SafetyCorridor> latest_safety_corridor;
   std::deque<adore::math::Point2d>                    latest_waypoints;
+  std::optional<adore_ros2_msgs::msg::VehicleInfo>    latest_vehicle_info;
 
   dynamics::TrafficParticipantSet traffic_participants;
-  dynamics::TrafficParticipantSet non_ego_traffic_participants;
 
 
   bool latest_trajectory_valid();
@@ -136,6 +137,7 @@ private:
   void suggested_trajectory_acceptance_callback( const std_msgs::msg::Bool& msg );
   void traffic_signals_callback( const adore_ros2_msgs::msg::TrafficSignals& msg );
   void traffic_participants_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg);
+  void infrastructure_traffic_participant_set_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg );
 
 
   // OTHER MEMBERS
