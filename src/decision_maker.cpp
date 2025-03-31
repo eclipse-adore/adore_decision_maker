@@ -481,23 +481,17 @@ DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::Traffi
 void
 DecisionMaker::infrastructure_traffic_participant_set_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg )
 {
-  std::cerr << "Number of participants: " << traffic_participants.participants.size() << std::endl;
   if ( !v2x_id.has_value() )
   {
     return;
   }
 
-  std::cerr << "Received a trajectory" << std::endl;
   auto new_participants_data = dynamics::conversions::to_cpp_type( msg );
 
   for( const auto& [id, new_participant] : new_participants_data.participants )
   {
-    std::cerr << "v2x_id: " << new_participant.v2x_id.value() << std::endl;
-    std::cerr << "My v2x id: " << latest_vehicle_info.value().v2x_station_id << std::endl;
-
     if ( latest_vehicle_info.value().v2x_station_id == new_participant.v2x_id.value() )
     {
-      std::cerr << "Found itself in infrastructure trajectories" << std::endl;
       if ( new_participant.trajectory.has_value() )
       {
         if( !new_participants_data.validity_area.has_value() )
@@ -518,25 +512,7 @@ DecisionMaker::infrastructure_traffic_participant_set_callback( const adore_ros2
     }
     traffic_participants.update_traffic_participants( new_participant );
   }
-
-  return;
-  traffic_participants.remove_old_participants( 1.0, now().seconds() );
-
-  if( v2x_id.value() > 10 && traffic_participants.participants.count( v2x_id.value() ) > 0 && traffic_participants.participants.at( v2x_id.value() ).trajectory )
-  {
-    std::cerr << "Added a reference trajectory" << std::endl;
-    latest_reference_trajectory = traffic_participants.participants.at( v2x_id.value() ).trajectory.value();
-  }
-
-  for (int i = 0; i < traffic_participants.participants.size(); i++)
-  {
-    
-  }
-
-  // non_ego_traffic_participants = traffic_participants;
-  // if( non_ego_traffic_participants.participants.find( v2x_id.value() ) != non_ego_traffic_participants.participants.end() )
-  //   non_ego_traffic_participants.participants.erase( v2x_id.value() );
-  
+ 
 }
 
 void
