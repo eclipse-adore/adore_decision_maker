@@ -407,15 +407,12 @@ DecisionMaker::latest_trajectory_valid()
   if( !latest_vehicle_state && !latest_reference_trajectory )
     return false;
 
-  std::cerr << "Got here 1" << std::endl;
   if( latest_reference_trajectory->states.size() < 2 )
     return false;
 
-  std::cerr << "Got here 2" << std::endl;
   if( latest_vehicle_state->time - latest_reference_trajectory->states.front().time > 0.5 )
     return false;
 
-  std::cerr << "Got here 3" << std::endl;
   return true;
 }
 
