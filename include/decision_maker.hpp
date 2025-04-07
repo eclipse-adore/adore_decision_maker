@@ -173,7 +173,6 @@ private:
   void create_publishers();
   void load_parameters();
 
-  std::optional<size_t> v2x_id;
   math::Point2d goal;
 
   std::unordered_map<std::string, math::Polygon2d> caution_zones;

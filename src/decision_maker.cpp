@@ -166,7 +166,7 @@ DecisionMaker::load_parameters()
 
 void
 DecisionMaker::run()
-{
+{ 
   update_state();
   // if( latest_vehicle_state )
   // {
@@ -481,7 +481,12 @@ DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::Traffi
 void
 DecisionMaker::infrastructure_traffic_participant_set_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg )
 {
-  if ( !v2x_id.has_value() )
+  if ( !latest_vehicle_info.has_value() )
+  {
+    return;
+  }
+
+  if ( latest_vehicle_info.value().v2x_station_id <= 0 )
   {
     return;
   }
@@ -490,35 +495,39 @@ DecisionMaker::infrastructure_traffic_participant_set_callback( const adore_ros2
 
   for( const auto& [id, new_participant] : new_participants_data.participants )
   {
-    if ( latest_vehicle_info.value().v2x_station_id == new_participant.v2x_id.value() )
+    traffic_participants.update_traffic_participants( new_participant );
+    if ( !new_participant.v2x_id.has_value() )
     {
-      if ( new_participant.trajectory.has_value() )
-      {
-        if( !new_participants_data.validity_area.has_value() )
-        {
-          std::cerr << "Received a trajectory, but no vaidity area, so trajectory will not be executed" << std::endl;
-        }
-        else
-        {
-          adore::math::Point2d participant_position {new_participant.state.x, new_participant.state.y};
-          if ( new_participants_data.validity_area.value().point_inside(participant_position))
-          {
-            latest_reference_trajectory = new_participant.trajectory.value();
-          }
-          
-        }
-      }
       continue;
     }
-    traffic_participants.update_traffic_participants( new_participant );
+
+    if ( static_cast<int>( latest_vehicle_info.value().v2x_station_id ) == new_participant.v2x_id.value() )
+    {
+      continue;
+    }
+
+    if ( !new_participant.trajectory.has_value() )
+    {
+      continue;
+    }
+
+    if( !new_participants_data.validity_area.has_value() )
+    {
+      std::cerr << "Received a trajectory, but no vaidity area, so trajectory will not be executed" << std::endl;
+      continue;
+    }
+
+    adore::math::Point2d participant_position { new_participant.state.x, new_participant.state.y };
+    if ( new_participants_data.validity_area.value().point_inside( participant_position ))
+    {
+      latest_reference_trajectory = new_participant.trajectory.value();
+    }
   }
- 
 }
 
 void
 DecisionMaker::vehicle_info_callback( const adore_ros2_msgs::msg::VehicleInfo& msg )
 {
-  v2x_id = msg.v2x_station_id;
   gps_fix_standard_deviation = msg.localization_error;
   latest_vehicle_info = msg;
 }
