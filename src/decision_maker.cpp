@@ -325,6 +325,7 @@ DecisionMaker::follow_route()
     if( std::any_of( stopping_points.begin(), stopping_points.end(),
                      [&]( const auto& s ) { return adore::math::distance_2d( s, p ) < 3.0; } ) )
       p.max_speed = 0;
+
   }
   if( use_opti_nlc_route_following )
   {
@@ -495,13 +496,15 @@ DecisionMaker::infrastructure_traffic_participant_set_callback( const adore_ros2
 
   for( const auto& [id, new_participant] : new_participants_data.participants )
   {
-    traffic_participants.update_traffic_participants( new_participant );
+    // Add this back once with a better approach later
+    // traffic_participants.update_traffic_participants( new_participant );
+
     if ( !new_participant.v2x_id.has_value() )
     {
       continue;
     }
 
-    if ( static_cast<int>( latest_vehicle_info.value().v2x_station_id ) == new_participant.v2x_id.value() )
+    if ( static_cast<int>( latest_vehicle_info.value().v2x_station_id ) != new_participant.v2x_id.value() )
     {
       continue;
     }
