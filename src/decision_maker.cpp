@@ -15,9 +15,10 @@
  ********************************************************************************/
 
 #include "decision_maker.hpp"
-#include <adore_math/point.h>
+
 #include "adore_ros2_msgs/msg/traffic_participant_set.hpp"
 #include "adore_ros2_msgs/msg/vehicle_info.hpp"
+#include <adore_math/point.h>
 
 namespace adore
 {
@@ -64,8 +65,9 @@ DecisionMaker::create_subscribers()
   subscriber_safety_corridor = create_subscription<adore_ros2_msgs::msg::SafetyCorridor>(
     "safety_corridor", 1, std::bind( &DecisionMaker::safety_corridor_callback, this, std::placeholders::_1 ) );
 
-  subscriber_vehicle_info = create_subscription<adore_ros2_msgs::msg::VehicleInfo>(
-    "vehicle_info", 1, std::bind( &DecisionMaker::vehicle_info_callback, this, std::placeholders::_1 ) );
+  subscriber_vehicle_info = create_subscription<adore_ros2_msgs::msg::VehicleInfo>( "vehicle_info", 1,
+                                                                                    std::bind( &DecisionMaker::vehicle_info_callback, this,
+                                                                                               std::placeholders::_1 ) );
 
   subscriber_waypoints = create_subscription<adore_ros2_msgs::msg::Waypoints>( "remote_operation_waypoints", 1,
                                                                                std::bind( &DecisionMaker::waypoints_callback, this,
@@ -78,13 +80,12 @@ DecisionMaker::create_subscribers()
     "suggested_trajectory_accepted", 1,
     std::bind( &DecisionMaker::suggested_trajectory_acceptance_callback, this, std::placeholders::_1 ) );
 
-  subscriber_traffic_participant_set =
-      create_subscription<adore_ros2_msgs::msg::TrafficParticipantSet>(
-          "traffic_participants", 1,
-          std::bind(&DecisionMaker::traffic_participants_callback, this,
-                    std::placeholders::_1));
+  subscriber_traffic_participant_set = create_subscription<adore_ros2_msgs::msg::TrafficParticipantSet>(
+    "traffic_participants", 1, std::bind( &DecisionMaker::traffic_participants_callback, this, std::placeholders::_1 ) );
 
-  subscriber_infrastructure_traffic_participants = create_subscription<adore_ros2_msgs::msg::TrafficParticipantSet>( "infrastructure_traffic_participants", 10, std::bind( &DecisionMaker::infrastructure_traffic_participant_set_callback, this, std::placeholders::_1 ) );
+  subscriber_infrastructure_traffic_participants = create_subscription<adore_ros2_msgs::msg::TrafficParticipantSet>(
+    "infrastructure_traffic_participants", 10,
+    std::bind( &DecisionMaker::infrastructure_traffic_participant_set_callback, this, std::placeholders::_1 ) );
   main_timer = create_wall_timer( std::chrono::milliseconds( static_cast<size_t>( 1000 * dt ) ), std::bind( &DecisionMaker::run, this ) );
 }
 
@@ -166,7 +167,7 @@ DecisionMaker::load_parameters()
 
 void
 DecisionMaker::run()
-{ 
+{
   update_state();
   // if( latest_vehicle_state )
   // {
@@ -247,8 +248,9 @@ DecisionMaker::check_caution_zones()
         && state != REQUESTING_ASSISTANCE )
       need_assistance = true;
     adore_ros2_msgs::msg::CautionZone caution_zone_msg;
-    caution_zone_msg.label   = label;
-    caution_zone_msg.polygon = math::conversions::to_ros_msg( polygon );
+    caution_zone_msg.label           = label;
+    caution_zone_msg.polygon         = math::conversions::to_ros_msg( polygon );
+    caution_zone_msg.header.frame_id = "world";
     publisher_caution_zones->publish( caution_zone_msg );
   }
 }
@@ -325,7 +327,6 @@ DecisionMaker::follow_route()
     if( std::any_of( stopping_points.begin(), stopping_points.end(),
                      [&]( const auto& s ) { return adore::math::distance_2d( s, p ) < 3.0; } ) )
       p.max_speed = 0;
-
   }
   if( use_opti_nlc_route_following )
   {
@@ -461,7 +462,7 @@ DecisionMaker::safety_corridor_callback( const adore_ros2_msgs::msg::SafetyCorri
 }
 
 void
-DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg)
+DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg )
 {
   auto new_participants_data = dynamics::conversions::to_cpp_type( msg );
 
@@ -482,12 +483,12 @@ DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::Traffi
 void
 DecisionMaker::infrastructure_traffic_participant_set_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg )
 {
-  if ( !latest_vehicle_info.has_value() )
+  if( !latest_vehicle_info.has_value() )
   {
     return;
   }
 
-  if ( latest_vehicle_info.value().v2x_station_id <= 0 )
+  if( latest_vehicle_info.value().v2x_station_id <= 0 )
   {
     return;
   }
@@ -499,17 +500,17 @@ DecisionMaker::infrastructure_traffic_participant_set_callback( const adore_ros2
     // Add this back once with a better approach later
     // traffic_participants.update_traffic_participants( new_participant );
 
-    if ( !new_participant.v2x_id.has_value() )
+    if( !new_participant.v2x_id.has_value() )
     {
       continue;
     }
 
-    if ( static_cast<int>( latest_vehicle_info.value().v2x_station_id ) != new_participant.v2x_id.value() )
+    if( static_cast<int>( latest_vehicle_info.value().v2x_station_id ) != new_participant.v2x_id.value() )
     {
       continue;
     }
 
-    if ( !new_participant.trajectory.has_value() )
+    if( !new_participant.trajectory.has_value() )
     {
       continue;
     }
@@ -520,8 +521,8 @@ DecisionMaker::infrastructure_traffic_participant_set_callback( const adore_ros2
       continue;
     }
 
-    adore::math::Point2d participant_position { new_participant.state.x, new_participant.state.y };
-    if ( new_participants_data.validity_area.value().point_inside( participant_position ))
+    adore::math::Point2d participant_position{ new_participant.state.x, new_participant.state.y };
+    if( new_participants_data.validity_area.value().point_inside( participant_position ) )
     {
       latest_reference_trajectory = new_participant.trajectory.value();
     }
@@ -532,7 +533,7 @@ void
 DecisionMaker::vehicle_info_callback( const adore_ros2_msgs::msg::VehicleInfo& msg )
 {
   gps_fix_standard_deviation = msg.localization_error;
-  latest_vehicle_info = msg;
+  latest_vehicle_info        = msg;
 }
 
 void
@@ -572,7 +573,6 @@ DecisionMaker::goal_callback( const adore_ros2_msgs::msg::GoalPoint& msg )
   goal.x = msg.x_position;
   goal.y = msg.y_position;
 }
-
 
 void
 DecisionMaker::print_init_info()
@@ -646,7 +646,6 @@ DecisionMaker::print_debug_info()
 
   std::cerr << "------- ============================== -------" << std::endl;
 }
-
 
 
 } // namespace adore
