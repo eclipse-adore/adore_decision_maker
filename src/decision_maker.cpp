@@ -112,6 +112,9 @@ DecisionMaker::load_parameters()
   declare_parameter( "dt", 0.05 );
   get_parameter( "dt", dt );
 
+  declare_parameter( "min_reference_trajectory_size", 5 );
+  get_parameter( "min_reference_trajectory_size", min_reference_trajectory_size );
+
   declare_parameter( "remote_operation_speed", 2.0 );
   get_parameter( "remote_operation_speed", remote_operation_speed );
 
@@ -412,7 +415,7 @@ DecisionMaker::latest_trajectory_valid()
   if( !latest_vehicle_state && !latest_reference_trajectory )
     return false;
 
-  if( latest_reference_trajectory->states.size() < 2 )
+  if( latest_reference_trajectory->states.size() < min_reference_trajectory_size )
     return false;
 
   if( latest_vehicle_state->time - latest_reference_trajectory->states.front().time > 0.5 )

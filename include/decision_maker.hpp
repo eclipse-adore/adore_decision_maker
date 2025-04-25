@@ -147,6 +147,7 @@ private:
   double                         remote_operation_speed                 = 2.0;
   dynamics::VehicleCommandLimits command_limits                         = { 0.7, -2.0, 2.0 };
   std::map<std::string, double>  planner_settings;
+  size_t                         min_reference_trajectory_size = 5;
 
   // OptiNLC related members
   planner::OptiNLCTrajectoryOptimizer opti_nlc_trajectory_optimizer;
