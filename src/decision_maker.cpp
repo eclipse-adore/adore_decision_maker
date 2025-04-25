@@ -84,8 +84,8 @@ DecisionMaker::create_subscribers()
     "traffic_participants", 1, std::bind( &DecisionMaker::traffic_participants_callback, this, std::placeholders::_1 ) );
 
   subscriber_infrastructure_traffic_participants = create_subscription<adore_ros2_msgs::msg::TrafficParticipantSet>(
-    "infrastructure_traffic_participants", 10,
-    std::bind( &DecisionMaker::infrastructure_traffic_participant_set_callback, this, std::placeholders::_1 ) );
+    "infrastructure_traffic_participants", 10, std::bind( &DecisionMaker::traffic_participants_callback, this, std::placeholders::_1 ) );
+
   main_timer = create_wall_timer( std::chrono::milliseconds( static_cast<size_t>( 1000 * dt ) ), std::bind( &DecisionMaker::run, this ) );
 }
 
@@ -121,6 +121,10 @@ DecisionMaker::load_parameters()
   get_parameter( "max_acceleration", command_limits.max_acceleration );
   get_parameter( "min_acceleration", command_limits.min_acceleration );
   get_parameter( "max_steering", command_limits.max_steering_angle );
+
+  command_limits.max_steering_angle = std::min( command_limits.max_steering_angle, model.params.steering_angle_max );
+  command_limits.max_acceleration   = std::min( command_limits.max_acceleration, model.params.acceleration_max );
+  command_limits.min_acceleration   = std::max( command_limits.min_acceleration, model.params.acceleration_min );
 
   // Planner related parameters
   std::vector<std::string> keys;
@@ -319,9 +323,8 @@ void
 DecisionMaker::follow_route()
 {
   dynamics::Trajectory planned_trajectory;
-  double               state_s = latest_route->get_s( latest_vehicle_state.value() );
-  std::cerr << state_s << "     - --------- state s" << std::endl;
-  auto cut_route = latest_route->get_shortened_route( state_s, 100.0 );
+  double               state_s   = latest_route->get_s( latest_vehicle_state.value() );
+  auto                 cut_route = latest_route->get_shortened_route( state_s, 100.0 );
   for( auto& p : cut_route )
   {
     if( std::any_of( stopping_points.begin(), stopping_points.end(),
@@ -464,69 +467,38 @@ DecisionMaker::safety_corridor_callback( const adore_ros2_msgs::msg::SafetyCorri
 void
 DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg )
 {
+  if( !latest_vehicle_info )
+    return;
   auto new_participants_data = dynamics::conversions::to_cpp_type( msg );
 
+  // update any old information with new participants
   for( const auto& [id, new_participant] : new_participants_data.participants )
     traffic_participants.update_traffic_participants( new_participant );
 
-  // traffic_participants.remove_old_participants( 1.0, now().seconds() );
+  // remove any old participants
+  traffic_participants.remove_old_participants( 1.0, now().seconds() );
 
-  // non_ego_traffic_participants = traffic_participants;
-
-  // if ( v2x_id.has_value() )
-  // {
-  //   if( non_ego_traffic_participants.participants.find( v2x_id.value() ) != non_ego_traffic_participants.participants.end() )
-  //     non_ego_traffic_participants.participants.erase( v2x_id.value() );
-  // }
+  if( traffic_participants.participants.find( latest_vehicle_info->v2x_station_id ) != traffic_participants.participants.end() )
+  {
+    latest_reference_trajectory = traffic_participants.participants.at( latest_vehicle_info->v2x_station_id ).trajectory;
+    traffic_participants.participants.erase( latest_vehicle_info->v2x_station_id );
+  }
 }
 
 void
-DecisionMaker::infrastructure_traffic_participant_set_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg )
+DecisionMaker::publish_traffic_participant()
 {
-  if( !latest_vehicle_info.has_value() )
-  {
+  if( !latest_vehicle_state || !latest_route || !latest_vehicle_info )
     return;
-  }
-
-  if( latest_vehicle_info.value().v2x_station_id <= 0 )
-  {
-    return;
-  }
-
-  auto new_participants_data = dynamics::conversions::to_cpp_type( msg );
-
-  for( const auto& [id, new_participant] : new_participants_data.participants )
-  {
-    // Add this back once with a better approach later
-    // traffic_participants.update_traffic_participants( new_participant );
-
-    if( !new_participant.v2x_id.has_value() )
-    {
-      continue;
-    }
-
-    if( static_cast<int>( latest_vehicle_info.value().v2x_station_id ) != new_participant.v2x_id.value() )
-    {
-      continue;
-    }
-
-    if( !new_participant.trajectory.has_value() )
-    {
-      continue;
-    }
-
-    if( !new_participants_data.validity_area.has_value() )
-    {
-      std::cerr << "Received a trajectory, but no vaidity area, so trajectory will not be executed" << std::endl;
-      continue;
-    }
-
-    adore::math::Point2d participant_position{ new_participant.state.x, new_participant.state.y };
-    if( new_participants_data.validity_area.value().point_inside( participant_position ) )
-    {
-      latest_reference_trajectory = new_participant.trajectory.value();
-    }
-  }
+  dynamics::TrafficParticipant ego_as_participant;
+  ego_as_participant.state               = latest_vehicle_state.value();
+  ego_as_participant.goal_point          = goal;
+  ego_as_participant.id                  = latest_vehicle_info->v2x_station_id;
+  ego_as_participant.v2x_id              = latest_vehicle_info->v2x_station_id;
+  ego_as_participant.classification      = dynamics::CAR;
+  ego_as_participant.route               = latest_route;
+  ego_as_participant.physical_parameters = model.params;
+  publisher_traffic_participant->publish( dynamics::conversions::to_ros_msg( ego_as_participant ) );
 }
 
 void
