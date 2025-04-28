@@ -207,6 +207,8 @@ DecisionMaker::run()
       break;
   }
 
+  publish_traffic_participant();
+
   if( debug_mode_active )
   {
     print_debug_info();
