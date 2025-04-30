@@ -143,6 +143,7 @@ private:
   // OTHER MEMBERS
   bool                           default_use_reference_trajectory_as_is = true;
   bool                           only_follow_reference_trajectories     = false;
+  bool                           ignore_reference_trajectories   = false;
   double                         dt                                     = 0.05;
   double                         remote_operation_speed                 = 2.0;
   dynamics::VehicleCommandLimits command_limits                         = { 0.7, -2.0, 2.0 };

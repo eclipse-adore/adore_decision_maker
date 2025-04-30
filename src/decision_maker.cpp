@@ -106,6 +106,9 @@ DecisionMaker::load_parameters()
   declare_parameter( "only_follow_reference_trajectories", false );
   get_parameter( "only_follow_reference_trajectories", only_follow_reference_trajectories );
 
+  declare_parameter( "ignore_reference_trajectories", false );
+  get_parameter( "ignore_reference_trajectories", ignore_reference_trajectories);
+
   declare_parameter( "optinlc_route_following", false );
   get_parameter( "optinlc_route_following", use_opti_nlc_route_following );
 
@@ -178,8 +181,8 @@ DecisionMaker::run()
   update_state();
   // if( latest_vehicle_state )
   // {
-  //   dynamics::VehicleCommand last_control( latest_vehicle_state->steering_angle, latest_vehicle_state->ax );
-  //   dynamics::integrate_up_to_time( *latest_vehicle_state, last_control, now().seconds(), model.motion_model );
+    // dynamics::VehicleCommand last_control( latest_vehicle_state->steering_angle, latest_vehicle_state->ax );
+    // dynamics::integrate_up_to_time( *latest_vehicle_state, last_control, now().seconds(), model.motion_model );
   // }
 
   switch( state )
@@ -485,6 +488,7 @@ DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::Traffi
     return;
   }
 
+  
   auto new_participants_data = dynamics::conversions::to_cpp_type( msg );
 
   // update any old information with new participants
@@ -493,8 +497,11 @@ DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::Traffi
 
   for( const auto& [id, new_participant] : new_participants_data.participants )
   {
-    if ( id == static_cast<int64_t>( latest_vehicle_info.value().v2x_station_id))
+    if ( id == 333 )
     {
+      // if ( ignore_reference_trajectories )
+        // continue;
+
       if ( new_participant.trajectory.has_value() )
       {
         latest_reference_trajectory = new_participant.trajectory.value();
