@@ -100,8 +100,29 @@ DecisionMaker::load_parameters()
   declare_parameter( "debug_mode_active", true );
   get_parameter( "debug_mode_active", debug_mode_active );
 
-  declare_parameter( "use_reference_trajectory_as_is", true );
-  get_parameter( "use_reference_trajectory_as_is", default_use_reference_trajectory_as_is );
+  declare_parameter( "optimize_reference_trajectory", false);
+  get_parameter( "optimize_reference_trajectory", optimize_reference_trajectory);
+
+  if ( optimize_reference_trajectory )
+  {
+    std::vector<std::string> optimizer_keys;
+    std::vector<double>      optimizer_values;
+    declare_parameter( "optimizer_planner_settings_keys", optimizer_keys);
+    declare_parameter( "optimizer_planner_settings_values", optimizer_values);
+    get_parameter( "optimizer_planner_settings_keys", optimizer_keys);
+    get_parameter( "optimizer_planner_settings_values", optimizer_values);
+    
+    if( optimizer_keys.size() != optimizer_values.size() )
+    {
+      RCLCPP_ERROR( this->get_logger(), "planner settings optimizer_keysand values size mismatch!" );
+      return;
+    }
+    for( size_t i = 0; i < optimizer_keys.size(); ++i )
+    {
+      optimizer_planner_settings.insert( { optimizer_keys[i], optimizer_values[i] } );
+      std::cerr <<  "optimizer_keys: " << optimizer_keys[i] << ": " << optimizer_values[i] << std::endl;
+    }
+  }
 
   declare_parameter( "only_follow_reference_trajectories", false );
   get_parameter( "only_follow_reference_trajectories", only_follow_reference_trajectories );
@@ -314,15 +335,18 @@ void
 DecisionMaker::follow_reference()
 {
   dynamics::Trajectory planned_trajectory;
-  if( !default_use_reference_trajectory_as_is )
-  {
-    planner::OptiNLCTrajectoryOptimizer planner;
-    planned_trajectory = planner.plan_trajectory( *latest_reference_trajectory, *latest_vehicle_state );
-  }
-  else
-  {
-    planned_trajectory = *latest_reference_trajectory;
-  }
+   if( optimize_reference_trajectory )
+   {
+     planner::OptiNLCTrajectoryOptimizer planner;
+     planner.set_parameters( optimizer_planner_settings );
+     planned_trajectory = planner.plan_trajectory( *latest_reference_trajectory, *latest_vehicle_state );
+   }
+   else
+   {
+     planned_trajectory = *latest_reference_trajectory;
+   }
+  
+
   planned_trajectory.label = "Follow Reference";
   publisher_trajectory->publish( dynamics::conversions::to_ros_msg( planned_trajectory ) );
 }
@@ -404,7 +428,7 @@ DecisionMaker::safety_corridor()
     planned_trajectory = planner::waypoints_to_trajectory( *latest_vehicle_state, safety_waypoints, dt, target_speed, command_limits,
                                                            traffic_participants, model );
     planned_trajectory.adjust_start_time( latest_vehicle_state->time );
-    if( !default_use_reference_trajectory_as_is )
+    if( optimize_reference_trajectory )
     {
       planner::OptiNLCTrajectoryOptimizer planner;
       planned_trajectory = planner.plan_trajectory( planned_trajectory, *latest_vehicle_state );
@@ -497,16 +521,25 @@ DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::Traffi
 
   for( const auto& [id, new_participant] : new_participants_data.participants )
   {
-    if ( id == 333 )
+    if ( id == latest_vehicle_info.value().v2x_station_id )
     {
       // if ( ignore_reference_trajectories )
         // continue;
 
-      if ( new_participant.trajectory.has_value() )
+      if ( !new_participant.trajectory.has_value() )
       {
-        latest_reference_trajectory = new_participant.trajectory.value();
+        continue;
       }
-      continue;
+
+      if ( new_participants_data.validity_area.has_value() )
+      {
+        if ( !new_participants_data.validity_area.value().point_inside( new_participant.state ))
+        {
+          continue;
+        }
+      }
+    
+      latest_reference_trajectory = new_participant.trajectory.value();
     }
     // traffic_participants.update_traffic_participants( new_participant ); 
   }

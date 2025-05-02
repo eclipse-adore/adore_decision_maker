@@ -141,13 +141,14 @@ private:
 
 
   // OTHER MEMBERS
-  bool                           default_use_reference_trajectory_as_is = true;
+  bool                           optimize_reference_trajectory = false;
   bool                           only_follow_reference_trajectories     = false;
   bool                           ignore_reference_trajectories   = false;
   double                         dt                                     = 0.05;
   double                         remote_operation_speed                 = 2.0;
   dynamics::VehicleCommandLimits command_limits                         = { 0.7, -2.0, 2.0 };
   std::map<std::string, double>  planner_settings;
+  std::map<std::string, double>  optimizer_planner_settings;
   size_t                         min_reference_trajectory_size = 5;
 
   // OptiNLC related members
