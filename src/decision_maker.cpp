@@ -425,6 +425,7 @@ DecisionMaker::latest_trajectory_valid()
     std::cerr << "Latest reference trajectory doesn't fufill size requirements, will not be executed" << std::endl;
     return false;
   }
+  latest_reference_trajectory->infer_steering_angles(model);
 
   // if( latest_vehicle_state->time - latest_reference_trajectory->states.front().time > 0.5 )
   // {
