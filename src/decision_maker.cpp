@@ -441,10 +441,10 @@ DecisionMaker::safety_corridor()
 bool
 DecisionMaker::latest_trajectory_valid()
 {
-  if( !latest_vehicle_state && !latest_reference_trajectory )
+  if( !latest_vehicle_state.has_value() || !latest_reference_trajectory.has_value() )
     return false;
 
-  if( latest_reference_trajectory->states.size() < min_reference_trajectory_size )
+  if( latest_reference_trajectory.value().states.size() < min_reference_trajectory_size )
   {
     std::cerr << "Latest reference trajectory doesn't fufill size requirements, will not be executed" << std::endl;
     return false;
@@ -541,11 +541,11 @@ DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::Traffi
     
       latest_reference_trajectory = new_participant.trajectory.value();
     }
-    // traffic_participants.update_traffic_participants( new_participant ); 
+    traffic_participants.update_traffic_participants( new_participant ); 
   }
 
   
-  traffic_participants.remove_old_participants( 1.0, now().seconds() ); // @TODO, move this to a callback function?
+  traffic_participants.remove_old_participants( 2.0, now().seconds() ); // @TODO, move this to a callback function?
 
   // remove any old participants
 
