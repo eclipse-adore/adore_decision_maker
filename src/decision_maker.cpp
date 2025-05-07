@@ -521,10 +521,12 @@ DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::Traffi
 
   for( const auto& [id, new_participant] : new_participants_data.participants )
   {
-    if ( id == latest_vehicle_info.value().v2x_station_id )
+    if ( id == 333 )
     {
-      // if ( ignore_reference_trajectories )
-        // continue;
+      if ( ignore_reference_trajectories )
+      {
+        continue;
+      }
 
       if ( !new_participant.trajectory.has_value() )
       {
@@ -538,6 +540,8 @@ DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::Traffi
           continue;
         }
       }
+
+      std::cerr << "saved infrastructure trajectory" << std::endl;
     
       latest_reference_trajectory = new_participant.trajectory.value();
     }
