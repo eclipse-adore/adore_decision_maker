@@ -7,6 +7,7 @@ project(${PROJECT})
 include($ENV{SOURCE_DIRECTORY}/libraries/adore_libraries.cmake)
 
 include(requirements.cmake)
+set(CMAKE_CXX_STANDARD 20)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/)
 
 # Ensure the Release build uses -O3 for optimization
@@ -18,7 +19,6 @@ endif()
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
-
 
 add_executable(${PROJECT} src/main.cpp src/decision_maker.cpp)
 
@@ -35,4 +35,17 @@ install(TARGETS
   DESTINATION lib/${PROJECT}
 )
 
+add_library(decisionmaker_component SHARED src/decision_maker.cpp)
+add_all_target_include_directories(decisionmaker_component)
+add_all_target_link_libraries(decisionmaker_component)
+rclcpp_components_register_node(
+  decisionmaker_component
+  PLUGIN "adore::DecisionMaker"
+  EXECUTABLE decisionmaker
+)
+install(TARGETS decisionmaker_component
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
+)
 ament_package()

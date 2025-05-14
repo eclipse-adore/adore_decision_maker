@@ -23,8 +23,8 @@
 namespace adore
 {
 
-DecisionMaker::DecisionMaker() :
-  Node( "decision_maker" )
+DecisionMaker::DecisionMaker( const rclcpp::NodeOptions& options ) :
+  Node( "decision_maker", options )
 {
   load_parameters();
   create_subscribers();
@@ -112,6 +112,9 @@ DecisionMaker::load_parameters()
   declare_parameter( "dt", 0.05 );
   get_parameter( "dt", dt );
 
+  declare_parameter( "min_route_length", 4.0 );
+  get_parameter( "min_route_length", min_route_length );
+
   declare_parameter( "min_reference_trajectory_size", 5 );
   get_parameter( "min_reference_trajectory_size", min_reference_trajectory_size );
 
@@ -168,7 +171,6 @@ DecisionMaker::load_parameters()
     std::cerr << "keys: " << keys[i] << ": " << values[i] << std::endl;
   }
 
-  lane_follow_planner.set_parameters( planner_settings );
   opti_nlc_trajectory_planner.set_parameters( planner_settings );
 }
 
@@ -176,11 +178,11 @@ void
 DecisionMaker::run()
 {
   update_state();
-  // if( latest_vehicle_state )
-  // {
-  //   dynamics::VehicleCommand last_control( latest_vehicle_state->steering_angle, latest_vehicle_state->ax );
-  //   dynamics::integrate_up_to_time( *latest_vehicle_state, last_control, now().seconds(), model.motion_model );
-  // }
+  if( latest_vehicle_state )
+  {
+    dynamics::VehicleCommand last_control( latest_vehicle_state->steering_angle, latest_vehicle_state->ax );
+    dynamics::integrate_up_to_time( *latest_vehicle_state, last_control, now().seconds(), model.motion_model );
+  }
 
   switch( state )
   {
@@ -228,7 +230,7 @@ DecisionMaker::update_state()
     current_conditions |= WAYPOINTS_AVAILABLE;
   if( latest_trajectory_valid() )
     current_conditions |= REFERENCE_TRAJECTORY_VALID;
-  if( latest_route && !only_follow_reference_trajectories )
+  if( latest_route_valid() && !only_follow_reference_trajectories )
     current_conditions |= ROUTE_AVAILABLE;
   if( latest_local_map )
     current_conditions |= LOCAL_MAP_AVAILABLE;
@@ -268,6 +270,7 @@ void
 DecisionMaker::emergency_stop()
 {
   dynamics::Trajectory emergency_stop_trajectory;
+  emergency_stop_trajectory.states.push_back( latest_vehicle_state.value() );
   emergency_stop_trajectory.label = "Emergency Stop";
   publisher_trajectory->publish( dynamics::conversions::to_ros_msg( emergency_stop_trajectory ) );
 }
@@ -277,6 +280,7 @@ DecisionMaker::standstill()
 {
   dynamics::Trajectory standstill_trajectory;
   standstill_trajectory.label = "Standstill";
+  standstill_trajectory.states.push_back( latest_vehicle_state.value() );
   publisher_trajectory->publish( dynamics::conversions::to_ros_msg( standstill_trajectory ) );
 }
 
@@ -336,15 +340,9 @@ DecisionMaker::follow_route()
                      [&]( const auto& s ) { return adore::math::distance_2d( s, p ) < 3.0; } ) )
       p.max_speed = 0;
   }
-  if( use_opti_nlc_route_following )
-  {
-    planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
-                                                                      traffic_participants );
-  }
-  else
-  {
-    planned_trajectory = lane_follow_planner.plan_trajectory( *latest_vehicle_state, cut_route, *latest_local_map, command_limits );
-  }
+
+  planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
+                                                                    traffic_participants );
 
   if( planned_trajectory.states.size() < 2 )
   {
@@ -367,15 +365,11 @@ DecisionMaker::minimum_risk_maneuver()
   {
     p.max_speed = 0;
   }
-  if( use_opti_nlc_route_following )
-  {
-    planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
-                                                                      traffic_participants );
-  }
-  else
-  {
-    planned_trajectory = lane_follow_planner.plan_trajectory( *latest_vehicle_state, cut_route, *latest_local_map, command_limits );
-  }
+
+  planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
+                                                                    traffic_participants );
+
+
   if( planned_trajectory.states.size() < 2 )
   {
     standstill();
@@ -426,11 +420,21 @@ DecisionMaker::latest_trajectory_valid()
   return true;
 }
 
+bool
+DecisionMaker::latest_route_valid()
+{
+  if( !latest_route || !latest_vehicle_state )
+    return false;
+  double remaining_route_length = latest_route->get_length() - latest_route->get_s( *latest_vehicle_state );
+  std::cerr << "Remaining route length: " << remaining_route_length << std::endl;
+  return remaining_route_length > min_route_length;
+}
+
 void
 DecisionMaker::route_callback( const adore_ros2_msgs::msg::Route& msg )
 {
   latest_route = map::conversions::to_cpp_type( msg );
-  if( latest_route->center_lane.size() < 2 )
+  if( latest_route->center_lane.size() < 1 )
     latest_route = std::nullopt;
   if( latest_local_map )
     latest_route->map = std::make_shared<map::Map>( latest_local_map.value() );
@@ -503,6 +507,7 @@ DecisionMaker::publish_traffic_participant()
   ego_as_participant.classification      = dynamics::CAR;
   ego_as_participant.route               = latest_route;
   ego_as_participant.physical_parameters = model.params;
+
   publisher_traffic_participant->publish( dynamics::conversions::to_ros_msg( ego_as_participant ) );
 }
 
@@ -626,3 +631,6 @@ DecisionMaker::print_debug_info()
 
 
 } // namespace adore
+
+#include "rclcpp_components/register_node_macro.hpp"
+RCLCPP_COMPONENTS_REGISTER_NODE( adore::DecisionMaker )
