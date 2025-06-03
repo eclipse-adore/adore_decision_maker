@@ -113,15 +113,14 @@ private:
 
 
   // LATEST RECEIVED DATA
-  std::optional<dynamics::Trajectory>                 latest_reference_trajectory;
-  std::optional<map::Route>                           latest_route;
-  std::optional<map::Map>                             latest_local_map;
-  std::optional<dynamics::VehicleStateDynamic>        latest_vehicle_state;
-  std::optional<adore_ros2_msgs::msg::SafetyCorridor> latest_safety_corridor;
+  std::optional<dynamics::Trajectory>                 latest_reference_trajectory = std::nullopt;
+  std::optional<map::Route>                           latest_route                = std::nullopt;
+  std::optional<map::Map>                             latest_local_map            = std::nullopt;
+  std::optional<dynamics::VehicleStateDynamic>        latest_vehicle_state        = std::nullopt;
+  std::optional<adore_ros2_msgs::msg::SafetyCorridor> latest_safety_corridor      = std::nullopt;
+  std::optional<adore_ros2_msgs::msg::VehicleInfo>    latest_vehicle_info         = std::nullopt;
   std::deque<adore::math::Point2d>                    latest_waypoints;
-  std::optional<adore_ros2_msgs::msg::VehicleInfo>    latest_vehicle_info;
-
-  dynamics::TrafficParticipantSet traffic_participants;
+  dynamics::TrafficParticipantSet                     traffic_participants;
 
 
   bool latest_trajectory_valid();

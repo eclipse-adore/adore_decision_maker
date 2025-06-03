@@ -270,7 +270,8 @@ void
 DecisionMaker::emergency_stop()
 {
   dynamics::Trajectory emergency_stop_trajectory;
-  emergency_stop_trajectory.states.push_back( latest_vehicle_state.value() );
+  if( latest_vehicle_state )
+    emergency_stop_trajectory.states.push_back( latest_vehicle_state.value() );
   emergency_stop_trajectory.label = "Emergency Stop";
   publisher_trajectory->publish( dynamics::conversions::to_ros_msg( emergency_stop_trajectory ) );
 }
@@ -280,7 +281,8 @@ DecisionMaker::standstill()
 {
   dynamics::Trajectory standstill_trajectory;
   standstill_trajectory.label = "Standstill";
-  standstill_trajectory.states.push_back( latest_vehicle_state.value() );
+  if( latest_vehicle_state )
+    standstill_trajectory.states.push_back( latest_vehicle_state.value() );
   publisher_trajectory->publish( dynamics::conversions::to_ros_msg( standstill_trajectory ) );
 }
 
@@ -413,16 +415,13 @@ DecisionMaker::latest_trajectory_valid()
 
   if( latest_reference_trajectory->states.size() < min_reference_trajectory_size )
   {
-    std::cerr << "Latest reference trajectory doesn't fufill size requirements, will not be executed" << std::endl;
     return false;
   }
 
-  // if( latest_vehicle_state->time - latest_reference_trajectory->states.front().time > 0.5 )
-  // {
-  //   std::cerr << "Latest reference trajectory doesn't fufill time requirements, will not be executed" << std::endl;
-  //   std::cerr << "time difference: " << latest_vehicle_state->time - latest_reference_trajectory->states.front().time;
-  //   return false;
-  // }
+  if( latest_vehicle_state->time - latest_reference_trajectory->states.front().time > 0.5 )
+  {
+    return false;
+  }
 
   return true;
 }
@@ -433,7 +432,6 @@ DecisionMaker::latest_route_valid()
   if( !latest_route || !latest_vehicle_state )
     return false;
   double remaining_route_length = latest_route->get_length() - latest_route->get_s( *latest_vehicle_state );
-  std::cerr << "Remaining route length: " << remaining_route_length << std::endl;
   return remaining_route_length > min_route_length;
 }
 
@@ -492,32 +490,21 @@ DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::Traffi
   auto new_participants_data = dynamics::conversions::to_cpp_type( msg );
 
   // update any old information with new participants
-  //
-
 
   for( const auto& [id, new_participant] : new_participants_data.participants )
   {
-    if ( id == static_cast<int64_t>( latest_vehicle_info.value().v2x_station_id))
+    if( id == static_cast<int64_t>( latest_vehicle_info.value().v2x_station_id ) )
     {
-      if ( new_participant.trajectory.has_value() )
+      if( new_participant.trajectory.has_value() )
       {
         latest_reference_trajectory = new_participant.trajectory.value();
       }
       continue;
     }
-    // traffic_participants.update_traffic_participants( new_participant ); 
+    traffic_participants.update_traffic_participants( new_participant );
   }
 
-  
   traffic_participants.remove_old_participants( 1.0, now().seconds() ); // @TODO, move this to a callback function?
-
-  // remove any old participants
-
-  // if( traffic_participants.participants.find( latest_vehicle_info->v2x_station_id ) != traffic_participants.participants.end() )
-  // {
-  //   latest_reference_trajectory = traffic_participants.participants.at( latest_vehicle_info->v2x_station_id ).trajectory;
-  //   traffic_participants.participants.erase( latest_vehicle_info->v2x_station_id );
-  // }
 }
 
 void
