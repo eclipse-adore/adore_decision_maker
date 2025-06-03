@@ -39,7 +39,6 @@
 #include "adore_ros2_msgs/msg/waypoints.hpp"
 
 #include "decision_states.hpp"
-#include "planning/lane_follow_planner.hpp"
 #include "planning/optinlc_trajectory_optimizer.hpp"
 #include "planning/optinlc_trajectory_planner.hpp"
 #include "planning/planning_helpers.hpp"
@@ -126,6 +125,8 @@ private:
 
 
   bool latest_trajectory_valid();
+  bool latest_route_valid();
+
 
   // CALLBACKS
   void route_callback( const adore_ros2_msgs::msg::Route& msg );
@@ -143,6 +144,7 @@ private:
   // OTHER MEMBERS
   bool                           default_use_reference_trajectory_as_is = true;
   bool                           only_follow_reference_trajectories     = false;
+  double                         min_route_length                       = 4.0;
   double                         dt                                     = 0.05;
   double                         remote_operation_speed                 = 2.0;
   dynamics::VehicleCommandLimits command_limits                         = { 0.7, -2.0, 2.0 };
@@ -155,7 +157,6 @@ private:
   planner::SafetyCorridorPlanner      safety_corridor_planner;
   bool                                use_opti_nlc_route_following = false;
 
-  planner::LaneFollowPlanner lane_follow_planner;
 
   // remote operations
   bool need_assistance         = false;
@@ -184,7 +185,7 @@ private:
 
 public:
 
-  DecisionMaker();
+  explicit DecisionMaker( const rclcpp::NodeOptions& options );
 };
 
 } // namespace adore
