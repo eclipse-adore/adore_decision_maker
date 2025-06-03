@@ -16,6 +16,10 @@
 
 #include "decision_maker.hpp"
 
+#include "adore_ros2_msgs/msg/traffic_participant_set.hpp"
+#include "adore_ros2_msgs/msg/vehicle_info.hpp"
+#include <adore_math/point.h>
+
 namespace adore
 {
 
@@ -34,9 +38,8 @@ DecisionMaker::create_publishers()
   publisher_trajectory                           = create_publisher<adore_ros2_msgs::msg::Trajectory>( "trajectory_decision", 10 );
   publisher_trajectory_suggestion                = create_publisher<adore_ros2_msgs::msg::Trajectory>( "trajectory_suggestion", 10 );
   publisher_request_assistance_remote_operations = create_publisher<adore_ros2_msgs::msg::AssistanceRequest>( "request_assistance", 10 );
-  publisher_traffic_participant                  = create_publisher<adore_ros2_msgs::msg::TrafficParticipant>( "traffic_participant", 1 );
-
-  publisher_caution_zones = create_publisher<adore_ros2_msgs::msg::CautionZone>( "caution_zones", 10 );
+  publisher_traffic_participant                  = create_publisher<adore_ros2_msgs::msg::TrafficParticipant>( "traffic_participant", 10 );
+  publisher_caution_zones                        = create_publisher<adore_ros2_msgs::msg::CautionZone>( "caution_zones", 10 );
 }
 
 void
@@ -62,9 +65,9 @@ DecisionMaker::create_subscribers()
   subscriber_safety_corridor = create_subscription<adore_ros2_msgs::msg::SafetyCorridor>(
     "safety_corridor", 1, std::bind( &DecisionMaker::safety_corridor_callback, this, std::placeholders::_1 ) );
 
-  subscriber_state_monitor = create_subscription<adore_ros2_msgs::msg::StateMonitor>( "vehicle_state/monitor", 1,
-                                                                                      std::bind( &DecisionMaker::state_monitor_callback,
-                                                                                                 this, std::placeholders::_1 ) );
+  subscriber_vehicle_info = create_subscription<adore_ros2_msgs::msg::VehicleInfo>( "vehicle_info", 1,
+                                                                                    std::bind( &DecisionMaker::vehicle_info_callback, this,
+                                                                                               std::placeholders::_1 ) );
 
   subscriber_waypoints = create_subscription<adore_ros2_msgs::msg::Waypoints>( "remote_operation_waypoints", 1,
                                                                                std::bind( &DecisionMaker::waypoints_callback, this,
@@ -76,6 +79,12 @@ DecisionMaker::create_subscribers()
   subscriber_suggested_trajectory_acceptance = create_subscription<std_msgs::msg::Bool>(
     "suggested_trajectory_accepted", 1,
     std::bind( &DecisionMaker::suggested_trajectory_acceptance_callback, this, std::placeholders::_1 ) );
+
+  subscriber_traffic_participant_set = create_subscription<adore_ros2_msgs::msg::TrafficParticipantSet>(
+    "traffic_participants", 1, std::bind( &DecisionMaker::traffic_participants_callback, this, std::placeholders::_1 ) );
+
+  subscriber_infrastructure_traffic_participants = create_subscription<adore_ros2_msgs::msg::TrafficParticipantSet>(
+    "infrastructure_traffic_participants", 10, std::bind( &DecisionMaker::traffic_participants_callback, this, std::placeholders::_1 ) );
 
   main_timer = create_wall_timer( std::chrono::milliseconds( static_cast<size_t>( 1000 * dt ) ), std::bind( &DecisionMaker::run, this ) );
 }
@@ -103,6 +112,9 @@ DecisionMaker::load_parameters()
   declare_parameter( "dt", 0.05 );
   get_parameter( "dt", dt );
 
+  declare_parameter( "min_reference_trajectory_size", 5 );
+  get_parameter( "min_reference_trajectory_size", min_reference_trajectory_size );
+
   declare_parameter( "remote_operation_speed", 2.0 );
   get_parameter( "remote_operation_speed", remote_operation_speed );
 
@@ -113,6 +125,10 @@ DecisionMaker::load_parameters()
   get_parameter( "min_acceleration", command_limits.min_acceleration );
   get_parameter( "max_steering", command_limits.max_steering_angle );
 
+  command_limits.max_steering_angle = std::min( command_limits.max_steering_angle, model.params.steering_angle_max );
+  command_limits.max_acceleration   = std::min( command_limits.max_acceleration, model.params.acceleration_max );
+  command_limits.min_acceleration   = std::max( command_limits.min_acceleration, model.params.acceleration_min );
+
   // Planner related parameters
   std::vector<std::string> keys;
   std::vector<double>      values;
@@ -120,9 +136,6 @@ DecisionMaker::load_parameters()
   declare_parameter( "planner_settings_values", values );
   get_parameter( "planner_settings_keys", keys );
   get_parameter( "planner_settings_values", values );
-
-  declare_parameter( "v2x_id", 1234 );
-  get_parameter( "v2x_id", v2x_id );
 
   std::vector<double> ra_polygon_values; // request assistance polygon
   declare_parameter( "request_assistance_polygon", std::vector<double>{} );
@@ -162,7 +175,6 @@ DecisionMaker::load_parameters()
 void
 DecisionMaker::run()
 {
-  update_traffic_participant_subscriptions();
   update_state();
   // if( latest_vehicle_state )
   // {
@@ -195,11 +207,12 @@ DecisionMaker::run()
       break;
   }
 
+  publish_traffic_participant();
+
   if( debug_mode_active )
   {
     print_debug_info();
   }
-  publish_traffic_participant();
 }
 
 void
@@ -244,8 +257,9 @@ DecisionMaker::check_caution_zones()
         && state != REQUESTING_ASSISTANCE )
       need_assistance = true;
     adore_ros2_msgs::msg::CautionZone caution_zone_msg;
-    caution_zone_msg.label   = label;
-    caution_zone_msg.polygon = math::conversions::to_ros_msg( polygon );
+    caution_zone_msg.label           = label;
+    caution_zone_msg.polygon         = math::conversions::to_ros_msg( polygon );
+    caution_zone_msg.header.frame_id = "world";
     publisher_caution_zones->publish( caution_zone_msg );
   }
 }
@@ -288,7 +302,7 @@ void
 DecisionMaker::remote_operation()
 {
   dynamics::Trajectory trajectory = planner::waypoints_to_trajectory( *latest_vehicle_state, latest_waypoints, dt, remote_operation_speed,
-                                                                      command_limits, non_ego_traffic_participants, model );
+                                                                      command_limits, traffic_participants, model );
   trajectory.label                = "Remote Operation";
   publisher_trajectory->publish( dynamics::conversions::to_ros_msg( trajectory ) );
 }
@@ -314,8 +328,9 @@ void
 DecisionMaker::follow_route()
 {
   dynamics::Trajectory planned_trajectory;
-  map::Route           cut_route = latest_route->get_shortened_route( 100.0 );
-  for( auto& p : cut_route.center_lane )
+  double               state_s   = latest_route->get_s( latest_vehicle_state.value() );
+  auto                 cut_route = latest_route->get_shortened_route( state_s, 100.0 );
+  for( auto& p : cut_route )
   {
     if( std::any_of( stopping_points.begin(), stopping_points.end(),
                      [&]( const auto& s ) { return adore::math::distance_2d( s, p ) < 3.0; } ) )
@@ -323,8 +338,8 @@ DecisionMaker::follow_route()
   }
   if( use_opti_nlc_route_following )
   {
-    planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( cut_route, *latest_vehicle_state, *latest_local_map,
-                                                                      non_ego_traffic_participants );
+    planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
+                                                                      traffic_participants );
   }
   else
   {
@@ -346,15 +361,16 @@ void
 DecisionMaker::minimum_risk_maneuver()
 {
   dynamics::Trajectory planned_trajectory;
-  map::Route           cut_route = latest_route->get_shortened_route( 100.0 );
-  for( auto& p : cut_route.center_lane )
+  double               state_s   = latest_route->get_s( latest_vehicle_state.value() );
+  auto                 cut_route = latest_route->get_shortened_route( state_s, 100.0 );
+  for( auto& p : cut_route )
   {
     p.max_speed = 0;
   }
   if( use_opti_nlc_route_following )
   {
-    planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( cut_route, *latest_vehicle_state, *latest_local_map,
-                                                                      non_ego_traffic_participants );
+    planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
+                                                                      traffic_participants );
   }
   else
   {
@@ -383,7 +399,7 @@ DecisionMaker::safety_corridor()
     double target_speed         = planner::is_point_to_right_of_line( *latest_vehicle_state, right_forward_points ) ? 0 : 2.0;
 
     planned_trajectory = planner::waypoints_to_trajectory( *latest_vehicle_state, safety_waypoints, dt, target_speed, command_limits,
-                                                           non_ego_traffic_participants, model );
+                                                           traffic_participants, model );
     planned_trajectory.adjust_start_time( latest_vehicle_state->time );
     if( !default_use_reference_trajectory_as_is )
     {
@@ -401,11 +417,18 @@ DecisionMaker::latest_trajectory_valid()
   if( !latest_vehicle_state && !latest_reference_trajectory )
     return false;
 
-  if( latest_reference_trajectory->states.size() < 2 )
+  if( latest_reference_trajectory->states.size() < min_reference_trajectory_size )
+  {
+    std::cerr << "Latest reference trajectory doesn't fufill size requirements, will not be executed" << std::endl;
     return false;
+  }
 
-  if( latest_vehicle_state->time - latest_reference_trajectory->states.front().time > 0.5 )
-    return false;
+  // if( latest_vehicle_state->time - latest_reference_trajectory->states.front().time > 0.5 )
+  // {
+  //   std::cerr << "Latest reference trajectory doesn't fufill time requirements, will not be executed" << std::endl;
+  //   std::cerr << "time difference: " << latest_vehicle_state->time - latest_reference_trajectory->states.front().time;
+  //   return false;
+  // }
 
   return true;
 }
@@ -416,6 +439,8 @@ DecisionMaker::route_callback( const adore_ros2_msgs::msg::Route& msg )
   latest_route = map::conversions::to_cpp_type( msg );
   if( latest_route->center_lane.size() < 2 )
     latest_route = std::nullopt;
+  if( latest_local_map )
+    latest_route->map = std::make_shared<map::Map>( latest_local_map.value() );
 }
 
 void
@@ -452,28 +477,66 @@ DecisionMaker::safety_corridor_callback( const adore_ros2_msgs::msg::SafetyCorri
 }
 
 void
-DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg, const std::string& /*namespace*/ )
+DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg )
 {
+  if( !latest_vehicle_info )
+  {
+    std::cerr << "Traffic participant callback is missing vehicle info" << std::endl;
+    return;
+  }
+
   auto new_participants_data = dynamics::conversions::to_cpp_type( msg );
 
+  // update any old information with new participants
+  //
+
+
   for( const auto& [id, new_participant] : new_participants_data.participants )
-    traffic_participants.update_traffic_participants( new_participant );
-
-  traffic_participants.remove_old_participants( 1.0, now().seconds() );
-
-  if( traffic_participants.participants.count( v2x_id ) > 0 && traffic_participants.participants.at( v2x_id ).trajectory )
   {
-    latest_reference_trajectory = traffic_participants.participants.at( v2x_id ).trajectory.value();
+    if ( id == static_cast<int64_t>( latest_vehicle_info.value().v2x_station_id))
+    {
+      if ( new_participant.trajectory.has_value() )
+      {
+        latest_reference_trajectory = new_participant.trajectory.value();
+      }
+      continue;
+    }
+    // traffic_participants.update_traffic_participants( new_participant ); 
   }
-  non_ego_traffic_participants = traffic_participants;
-  if( non_ego_traffic_participants.participants.find( v2x_id ) != non_ego_traffic_participants.participants.end() )
-    non_ego_traffic_participants.participants.erase( v2x_id );
+
+  
+  traffic_participants.remove_old_participants( 1.0, now().seconds() ); // @TODO, move this to a callback function?
+
+  // remove any old participants
+
+  // if( traffic_participants.participants.find( latest_vehicle_info->v2x_station_id ) != traffic_participants.participants.end() )
+  // {
+  //   latest_reference_trajectory = traffic_participants.participants.at( latest_vehicle_info->v2x_station_id ).trajectory;
+  //   traffic_participants.participants.erase( latest_vehicle_info->v2x_station_id );
+  // }
 }
 
 void
-DecisionMaker::state_monitor_callback( const adore_ros2_msgs::msg::StateMonitor& msg )
+DecisionMaker::publish_traffic_participant()
+{
+  if( !latest_vehicle_state || !latest_route || !latest_vehicle_info )
+    return;
+  dynamics::TrafficParticipant ego_as_participant;
+  ego_as_participant.state               = latest_vehicle_state.value();
+  ego_as_participant.goal_point          = goal;
+  ego_as_participant.id                  = latest_vehicle_info->v2x_station_id;
+  ego_as_participant.v2x_id              = latest_vehicle_info->v2x_station_id;
+  ego_as_participant.classification      = dynamics::CAR;
+  ego_as_participant.route               = latest_route;
+  ego_as_participant.physical_parameters = model.params;
+  publisher_traffic_participant->publish( dynamics::conversions::to_ros_msg( ego_as_participant ) );
+}
+
+void
+DecisionMaker::vehicle_info_callback( const adore_ros2_msgs::msg::VehicleInfo& msg )
 {
   gps_fix_standard_deviation = msg.localization_error;
+  latest_vehicle_info        = msg;
 }
 
 void
@@ -484,10 +547,15 @@ DecisionMaker::waypoints_callback( const adore_ros2_msgs::msg::Waypoints& waypoi
 
   latest_waypoints.clear();
   std::transform( waypoints_msg.waypoints.begin(), waypoints_msg.waypoints.end(), std::back_inserter( latest_waypoints ),
-                  []( const geometry_msgs::msg::Point& pt ) { return adore::math::Point2d( pt.x, pt.y ); } );
+                  []( const adore_ros2_msgs::msg::Point2d& pt ) { return adore::math::Point2d( pt.x, pt.y ); } );
+
+  double target_speed = remote_operation_speed;
+  // use max speed from waypoints if present
+  if( !waypoints_msg.speed_limits.empty() )
+    target_speed = std::max( target_speed, *std::max_element( waypoints_msg.speed_limits.begin(), waypoints_msg.speed_limits.end() ) );
 
   dynamics::Trajectory trajectory = planner::waypoints_to_trajectory( *latest_vehicle_state, latest_waypoints, dt, remote_operation_speed,
-                                                                      command_limits, non_ego_traffic_participants, model );
+                                                                      command_limits, traffic_participants, model );
   publisher_trajectory_suggestion->publish( dynamics::conversions::to_ros_msg( trajectory ) );
   sent_suggestion = true;
 }
@@ -495,13 +563,11 @@ DecisionMaker::waypoints_callback( const adore_ros2_msgs::msg::Waypoints& waypoi
 void
 DecisionMaker::suggested_trajectory_acceptance_callback( const std_msgs::msg::Bool& msg )
 {
-
-  if( msg.data )
-  {
-    need_assistance         = false;
-    sent_suggestion         = false;
-    sent_assistance_request = false;
-  }
+  if( !( state == REQUESTING_ASSISTANCE || state == REMOTE_OPERATION ) )
+    return;
+  need_assistance         = !msg.data;
+  sent_suggestion         = false;
+  sent_assistance_request = false;
 }
 
 void
@@ -584,57 +650,5 @@ DecisionMaker::print_debug_info()
   std::cerr << "------- ============================== -------" << std::endl;
 }
 
-void
-DecisionMaker::publish_traffic_participant()
-{
-  if( !latest_vehicle_state )
-    return;
-  dynamics::TrafficParticipant ego_as_participant;
-  ego_as_participant.state               = latest_vehicle_state.value();
-  ego_as_participant.goal_point          = goal;
-  ego_as_participant.id                  = v2x_id;
-  ego_as_participant.v2x_id              = v2x_id;
-  ego_as_participant.classification      = dynamics::CAR;
-  ego_as_participant.route               = latest_route;
-  ego_as_participant.physical_parameters = model.params;
-
-  publisher_traffic_participant->publish( dynamics::conversions::to_ros_msg( ego_as_participant ) );
-}
-
-void
-DecisionMaker::update_traffic_participant_subscriptions()
-{
-  auto       topic_names_and_types = get_topic_names_and_types();
-  std::regex valid_topic_regex( R"(^/([^/]+)/traffic_participants$)" );
-  std::regex valid_type_regex( R"(^adore_ros2_msgs/msg/TrafficParticipantSet$)" );
-
-  for( const auto& topic : topic_names_and_types )
-  {
-    const std::string&              topic_name = topic.first;
-    const std::vector<std::string>& types      = topic.second;
-
-    std::smatch match;
-    if( std::regex_match( topic_name, match, valid_topic_regex )
-        && std::any_of( types.begin(), types.end(),
-                        [&]( const std::string& type ) { return std::regex_match( type, valid_type_regex ); } ) )
-    {
-      std::string vehicle_namespace = match[1].str();
-
-      // Check if already subscribed
-      if( traffic_participant_subscribers.count( vehicle_namespace ) > 0 )
-      {
-        continue;
-      }
-
-      // Create a new subscription for the traffic participant topic
-      auto subscription = create_subscription<adore_ros2_msgs::msg::TrafficParticipantSet>(
-        topic_name, 1, [this, vehicle_namespace]( const adore_ros2_msgs::msg::TrafficParticipantSet& msg ) {
-          traffic_participants_callback( msg, vehicle_namespace );
-        } );
-
-      traffic_participant_subscribers[vehicle_namespace] = subscription;
-    }
-  }
-}
 
 } // namespace adore
