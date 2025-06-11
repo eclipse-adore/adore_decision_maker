@@ -9,6 +9,10 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
   <depend>rclcpp</depend>
+  <depend>rclcpp_components</depend>
+  <depend>adore_planning</depend>
+
+
 
   <build_depend>adore_dynamics_conversions</build_depend>
   <build_depend>adore_map_conversions</build_depend>

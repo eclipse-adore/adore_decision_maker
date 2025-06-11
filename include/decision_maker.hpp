@@ -39,10 +39,10 @@
 #include "adore_ros2_msgs/msg/waypoints.hpp"
 
 #include "decision_states.hpp"
-#include "planning/optinlc_trajectory_optimizer.hpp"
-#include "planning/optinlc_trajectory_planner.hpp"
+// #include "planning/optinlc_trajectory_optimizer.hpp"
+// #include "planning/optinlc_trajectory_planner.hpp"
 #include "planning/planning_helpers.hpp"
-#include "planning/safety_corridor_planner.hpp"
+// #include "planning/safety_corridor_planner.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/nav_sat_fix.hpp"
 #include "std_msgs/msg/bool.hpp"
@@ -151,10 +151,10 @@ private:
   size_t                         min_reference_trajectory_size = 5;
 
   // OptiNLC related members
-  planner::OptiNLCTrajectoryOptimizer opti_nlc_trajectory_optimizer;
-  planner::OptiNLCTrajectoryPlanner   opti_nlc_trajectory_planner;
-  planner::SafetyCorridorPlanner      safety_corridor_planner;
-  bool                                use_opti_nlc_route_following = false;
+  // planner::OptiNLCTrajectoryOptimizer opti_nlc_trajectory_optimizer;
+  // planner::OptiNLCTrajectoryPlanner   opti_nlc_trajectory_planner;
+  // planner::SafetyCorridorPlanner      safety_corridor_planner;
+  bool use_opti_nlc_route_following = false;
 
 
   // remote operations

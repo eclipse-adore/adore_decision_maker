@@ -171,7 +171,7 @@ DecisionMaker::load_parameters()
     std::cerr << "keys: " << keys[i] << ": " << values[i] << std::endl;
   }
 
-  opti_nlc_trajectory_planner.set_parameters( planner_settings );
+  // opti_nlc_trajectory_planner.set_parameters( planner_settings );
 }
 
 void
@@ -209,7 +209,7 @@ DecisionMaker::run()
       break;
   }
 
-  publish_traffic_participant();
+  // publish_traffic_participant();
 
   if( debug_mode_active )
   {
@@ -319,8 +319,8 @@ DecisionMaker::follow_reference()
   dynamics::Trajectory planned_trajectory;
   if( !default_use_reference_trajectory_as_is )
   {
-    planner::OptiNLCTrajectoryOptimizer planner;
-    planned_trajectory = planner.plan_trajectory( *latest_reference_trajectory, *latest_vehicle_state );
+    // planner::OptiNLCTrajectoryOptimizer planner;
+    // planned_trajectory = planner.plan_trajectory( *latest_reference_trajectory, *latest_vehicle_state );
   }
   else
   {
@@ -342,9 +342,10 @@ DecisionMaker::follow_route()
                      [&]( const auto& s ) { return adore::math::distance_2d( s, p ) < 3.0; } ) )
       p.max_speed = 0;
   }
+  // opti_nlc_trajectory_planner.speed_profile.vehicle_params = model.params;
 
-  planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
-                                                                    traffic_participants );
+  // planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
+  //                                                                   traffic_participants );
 
   if( planned_trajectory.states.size() < 2 )
   {
@@ -368,8 +369,8 @@ DecisionMaker::minimum_risk_maneuver()
     p.max_speed = 0;
   }
 
-  planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
-                                                                    traffic_participants );
+  // planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
+  //                                                                   traffic_participants );
 
 
   if( planned_trajectory.states.size() < 2 )
@@ -399,8 +400,8 @@ DecisionMaker::safety_corridor()
     planned_trajectory.adjust_start_time( latest_vehicle_state->time );
     if( !default_use_reference_trajectory_as_is )
     {
-      planner::OptiNLCTrajectoryOptimizer planner;
-      planned_trajectory = planner.plan_trajectory( planned_trajectory, *latest_vehicle_state );
+      // planner::OptiNLCTrajectoryOptimizer planner;
+      // planned_trajectory = planner.plan_trajectory( planned_trajectory, *latest_vehicle_state );
     }
     planned_trajectory.label = "Safety Corridor";
     publisher_trajectory->publish( dynamics::conversions::to_ros_msg( planned_trajectory ) );
@@ -438,9 +439,12 @@ DecisionMaker::latest_route_valid()
 void
 DecisionMaker::route_callback( const adore_ros2_msgs::msg::Route& msg )
 {
+
   latest_route = map::conversions::to_cpp_type( msg );
+
   if( latest_route->center_lane.size() < 1 )
     latest_route = std::nullopt;
+
   if( latest_local_map )
     latest_route->map = std::make_shared<map::Map>( latest_local_map.value() );
 }
@@ -481,13 +485,14 @@ DecisionMaker::safety_corridor_callback( const adore_ros2_msgs::msg::SafetyCorri
 void
 DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg )
 {
+
   if( !latest_vehicle_info )
   {
     std::cerr << "Traffic participant callback is missing vehicle info" << std::endl;
     return;
   }
-
   auto new_participants_data = dynamics::conversions::to_cpp_type( msg );
+  std::cerr << "Received traffic participants: " << new_participants_data.participants.size() << std::endl;
 
   // update any old information with new participants
 
@@ -504,7 +509,9 @@ DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::Traffi
     traffic_participants.update_traffic_participants( new_participant );
   }
 
-  traffic_participants.remove_old_participants( 1.0, now().seconds() ); // @TODO, move this to a callback function?
+
+  // traffic_participants.remove_old_participants( 1.0, now().seconds() ); // @TODO, move this to a callback function?
+  std::cerr << "Current traffic participants: " << traffic_participants.participants.size() << std::endl;
 }
 
 void
