@@ -43,6 +43,7 @@
 // #include "planning/optinlc_trajectory_planner.hpp"
 #include "planning/planning_helpers.hpp"
 // #include "planning/safety_corridor_planner.hpp"
+#include "planning/osqp_planner.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/nav_sat_fix.hpp"
 #include "std_msgs/msg/bool.hpp"
@@ -156,6 +157,7 @@ private:
   // planner::SafetyCorridorPlanner      safety_corridor_planner;
   bool use_opti_nlc_route_following = false;
 
+  planner::OSQPPlanner osqp_planner;
 
   // remote operations
   bool need_assistance         = false;

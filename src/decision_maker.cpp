@@ -342,10 +342,12 @@ DecisionMaker::follow_route()
                      [&]( const auto& s ) { return adore::math::distance_2d( s, p ) < 3.0; } ) )
       p.max_speed = 0;
   }
-  // opti_nlc_trajectory_planner.speed_profile.vehicle_params = model.params;
+  osqp_planner.speed_profile.vehicle_params = model.params;
 
   // planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
   //                                                                   traffic_participants );
+
+  planned_trajectory = osqp_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map, traffic_participants );
 
   if( planned_trajectory.states.size() < 2 )
   {
