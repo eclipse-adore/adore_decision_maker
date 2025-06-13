@@ -43,6 +43,7 @@
 #include "planning/optinlc_trajectory_planner.hpp"
 #include "planning/planning_helpers.hpp"
 #include "planning/safety_corridor_planner.hpp"
+#include "planning/multi_agent_PID.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/nav_sat_fix.hpp"
 #include "std_msgs/msg/bool.hpp"
@@ -139,6 +140,8 @@ private:
   void traffic_signals_callback( const adore_ros2_msgs::msg::TrafficSignals& msg );
   void traffic_participants_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg );
 
+  void compute_routes_for_traffic_participant_set( dynamics::TrafficParticipantSet& traffic_participant_set );
+  void compute_trajectories_for_traffic_participant_set( dynamics::TrafficParticipantSet& traffic_participant_set );
 
   // OTHER MEMBERS
   bool                           default_use_reference_trajectory_as_is = true;
@@ -146,6 +149,7 @@ private:
   double                         min_route_length                       = 4.0;
   double                         dt                                     = 0.05;
   double                         remote_operation_speed                 = 2.0;
+  int                            ego_id                                 = 777; // can be changed to a standard value
   dynamics::VehicleCommandLimits command_limits                         = { 0.7, -2.0, 2.0 };
   std::map<std::string, double>  planner_settings;
   size_t                         min_reference_trajectory_size = 5;
@@ -154,6 +158,7 @@ private:
   planner::OptiNLCTrajectoryOptimizer opti_nlc_trajectory_optimizer;
   planner::OptiNLCTrajectoryPlanner   opti_nlc_trajectory_planner;
   planner::SafetyCorridorPlanner      safety_corridor_planner;
+  planner::MultiAgentPID              multi_agent_PID_planner;
   bool                                use_opti_nlc_route_following = false;
 
 

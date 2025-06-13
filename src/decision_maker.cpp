@@ -172,6 +172,7 @@ DecisionMaker::load_parameters()
   }
 
   opti_nlc_trajectory_planner.set_parameters( planner_settings );
+  multi_agent_PID_planner.set_parameters( planner_settings );
 }
 
 void
@@ -331,6 +332,45 @@ DecisionMaker::follow_reference()
 }
 
 void
+DecisionMaker::compute_trajectories_for_traffic_participant_set( dynamics::TrafficParticipantSet& traffic_participant_set )
+{
+  std::cerr << "debug participant set before: " << traffic_participant_set.participants.size() << std::endl;
+  dynamics::TrafficParticipant ego_vehicle;
+  ego_vehicle.state = latest_vehicle_state.value();
+  ego_vehicle.goal_point = goal;
+  ego_vehicle.id = ego_id;
+  ego_vehicle.route = latest_route;
+  ego_vehicle.physical_parameters = model.params;
+  traffic_participant_set.participants[ego_vehicle.id] = ego_vehicle;
+  if( latest_local_map.has_value() )
+  {
+    compute_routes_for_traffic_participant_set( traffic_participant_set );
+  }
+  multi_agent_PID_planner.plan_trajectories( traffic_participant_set );
+  std::cerr << "traffic participant set: " << traffic_participant_set.participants[ego_vehicle.id].trajectory.value().states.size() << std::endl;
+}
+
+void
+DecisionMaker::compute_routes_for_traffic_participant_set( dynamics::TrafficParticipantSet& traffic_participant_set )
+{
+  for( auto& [id, participant] : traffic_participant_set.participants )
+  {
+    bool no_goal  = !participant.goal_point.has_value();
+    bool no_route = !participant.route.has_value();
+
+    if( !no_goal && no_route )
+    {
+        participant.route = map::Route( participant.state, participant.goal_point.value(), *latest_local_map );
+        if( participant.route->center_lane.empty() )
+        {
+          participant.route = std::nullopt;
+          std::cerr << "No route found for traffic participant" << std::endl;
+        }
+    }
+  }
+}
+
+void
 DecisionMaker::follow_route()
 {
   dynamics::Trajectory planned_trajectory;
@@ -343,6 +383,8 @@ DecisionMaker::follow_route()
       p.max_speed = 0;
   }
 
+  compute_trajectories_for_traffic_participant_set( traffic_participants );
+  opti_nlc_trajectory_planner.speed_profile.vehicle_params = model.params;
   planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
                                                                     traffic_participants );
 
