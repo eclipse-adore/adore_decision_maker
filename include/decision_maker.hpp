@@ -94,6 +94,7 @@ private:
   // PUBLISHERS
   rclcpp::Publisher<adore_ros2_msgs::msg::Trajectory>::SharedPtr         publisher_trajectory;
   rclcpp::Publisher<adore_ros2_msgs::msg::Trajectory>::SharedPtr         publisher_trajectory_suggestion;
+  rclcpp::Publisher<adore_ros2_msgs::msg::TrafficParticipantSet>::SharedPtr publisher_traffic_participant_with_trajectory_prediction;
   rclcpp::Publisher<adore_ros2_msgs::msg::AssistanceRequest>::SharedPtr  publisher_request_assistance_remote_operations;
   rclcpp::Publisher<adore_ros2_msgs::msg::CautionZone>::SharedPtr        publisher_caution_zones;
   rclcpp::Publisher<adore_ros2_msgs::msg::TrafficParticipant>::SharedPtr publisher_traffic_participant;
@@ -147,7 +148,7 @@ private:
   bool                           default_use_reference_trajectory_as_is = true;
   bool                           only_follow_reference_trajectories     = false;
   double                         min_route_length                       = 4.0;
-  double                         dt                                     = 0.05;
+  double                         dt                                     = 0.1;
   double                         remote_operation_speed                 = 2.0;
   int                            ego_id                                 = 777; // can be changed to a standard value
   dynamics::VehicleCommandLimits command_limits                         = { 0.7, -2.0, 2.0 };

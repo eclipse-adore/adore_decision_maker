@@ -39,6 +39,7 @@ DecisionMaker::create_publishers()
   publisher_trajectory_suggestion                = create_publisher<adore_ros2_msgs::msg::Trajectory>( "trajectory_suggestion", 10 );
   publisher_request_assistance_remote_operations = create_publisher<adore_ros2_msgs::msg::AssistanceRequest>( "request_assistance", 10 );
   publisher_traffic_participant                  = create_publisher<adore_ros2_msgs::msg::TrafficParticipant>( "traffic_participant", 10 );
+  publisher_traffic_participant_with_trajectory_prediction = create_publisher<adore_ros2_msgs::msg::TrafficParticipantSet>( "traffic_prediction", 10 );
   publisher_caution_zones                        = create_publisher<adore_ros2_msgs::msg::CautionZone>( "caution_zones", 10 );
 }
 
@@ -334,7 +335,6 @@ DecisionMaker::follow_reference()
 void
 DecisionMaker::compute_trajectories_for_traffic_participant_set( dynamics::TrafficParticipantSet& traffic_participant_set )
 {
-  std::cerr << "debug participant set before: " << traffic_participant_set.participants.size() << std::endl;
   dynamics::TrafficParticipant ego_vehicle;
   ego_vehicle.state = latest_vehicle_state.value();
   ego_vehicle.goal_point = goal;
@@ -347,7 +347,6 @@ DecisionMaker::compute_trajectories_for_traffic_participant_set( dynamics::Traff
     compute_routes_for_traffic_participant_set( traffic_participant_set );
   }
   multi_agent_PID_planner.plan_trajectories( traffic_participant_set );
-  std::cerr << "traffic participant set: " << traffic_participant_set.participants[ego_vehicle.id].trajectory.value().states.size() << std::endl;
 }
 
 void
@@ -393,10 +392,10 @@ DecisionMaker::follow_route()
     standstill();
     return;
   }
-
   planned_trajectory.adjust_start_time( latest_vehicle_state->time );
   planned_trajectory.label = "Follow Route";
   publisher_trajectory->publish( dynamics::conversions::to_ros_msg( planned_trajectory ) );
+  publisher_traffic_participant_with_trajectory_prediction->publish( dynamics::conversions::to_ros_msg( traffic_participants ) );
 }
 
 void
