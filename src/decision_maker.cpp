@@ -355,7 +355,7 @@ DecisionMaker::follow_route()
     return;
   }
 
-  planned_trajectory.adjust_start_time( latest_vehicle_state->time );
+  // planned_trajectory.adjust_start_time( latest_vehicle_state->time );
   planned_trajectory.label = "Follow Route";
   publisher_trajectory->publish( dynamics::conversions::to_ros_msg( planned_trajectory ) );
 }
@@ -494,7 +494,6 @@ DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::Traffi
     return;
   }
   auto new_participants_data = dynamics::conversions::to_cpp_type( msg );
-  std::cerr << "Received traffic participants: " << new_participants_data.participants.size() << std::endl;
 
   // update any old information with new participants
 
@@ -512,8 +511,7 @@ DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::Traffi
   }
 
 
-  // traffic_participants.remove_old_participants( 1.0, now().seconds() ); // @TODO, move this to a callback function?
-  std::cerr << "Current traffic participants: " << traffic_participants.participants.size() << std::endl;
+  traffic_participants.remove_old_participants( 1.0, now().seconds() );
 }
 
 void
