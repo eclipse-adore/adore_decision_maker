@@ -38,6 +38,10 @@ find_package(sensor_msgs REQUIRED)
 add_executable(${PROJECT_NAME}
   src/main.cpp
   src/decision_maker.cpp
+  src/behaviours.cpp
+  src/domain.cpp
+  src/conditions.cpp
+
 )
 
 target_include_directories(${PROJECT_NAME}
