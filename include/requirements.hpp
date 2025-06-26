@@ -15,9 +15,10 @@ enum DecisionState
   FOLLOW_REFERENCE,
   FOLLOW_ROUTE,
   STANDSTILL,
-  REMOTE_OPERATION,
   EXIT_SAFETY_CORRIDOR,
   REQUESTING_ASSISTANCE,
+  WAITING_FOR_ASSISTANCE,
+  FOLLOWING_ASSISTANCE,
   MINIMUM_RISK_MANEUVER
 };
 
@@ -57,14 +58,16 @@ decision_state_to_string( DecisionState state )
       return "FOLLOW_ROUTE";
     case STANDSTILL:
       return "STANDSTILL";
-    case REMOTE_OPERATION:
-      return "REMOTE_OPERATION";
     case EXIT_SAFETY_CORRIDOR:
       return "EXIT_SAFETY_CORRIDOR";
     case REQUESTING_ASSISTANCE:
       return "REQUESTING_ASSISTANCE";
     case MINIMUM_RISK_MANEUVER:
       return "MINIMUM_RISK_MANEUVER";
+    case WAITING_FOR_ASSISTANCE:
+      return "WAITING_FOR_ASSISTANCE";
+    case FOLLOWING_ASSISTANCE:
+      return "FOLLOWING_ASSISTANCE";
     default:
       throw std::runtime_error( "Unknown DecisionState" );
   }

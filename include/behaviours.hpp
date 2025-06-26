@@ -13,11 +13,12 @@ namespace adore
 
 struct Decision
 {
-  std::optional<dynamics::Trajectory>              trajectory;
-  std::optional<dynamics::Trajectory>              trajectory_suggestion; // for remote operation
-  bool                                             request_assistance = false;
-  std::unordered_map<std::string, math::Polygon2d> caution_zones;
-  std::optional<dynamics::TrafficParticipant>      publisher_traffic_participant;
+  std::optional<dynamics::Trajectory>         trajectory;
+  std::optional<dynamics::TrafficParticipant> publisher_traffic_participant;
+
+  std::optional<dynamics::Trajectory> trajectory_suggestion;
+  bool                                request_assistance       = false;
+  bool                                reset_assistance_request = true;
 };
 
 struct DecisionTools
@@ -34,6 +35,8 @@ Decision execute( DecisionState, const Domain&, DecisionTools& );
 Decision emergency_stop( const Domain&, DecisionTools& );
 Decision standstill( const Domain&, DecisionTools& );
 Decision follow_reference( const Domain&, DecisionTools& );
+Decision follow_assistance( const Domain&, DecisionTools& );
+Decision waiting_for_assistance( const Domain&, DecisionTools& );
 Decision follow_route( const Domain&, DecisionTools& );
 Decision remote_operation( const Domain&, DecisionTools& );
 Decision safety_corridor( const Domain&, DecisionTools& );

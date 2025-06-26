@@ -7,7 +7,7 @@ DecisionMaker::DecisionMaker( const rclcpp::NodeOptions& opts ) :
   rclcpp::Node{ "decision_maker", opts }
 {
   domain.setup( *this );
-  publisher_hub.init( *this );
+  decision_publisher.init( *this );
   load_parameters();
   init_state_requirements();
   timer = create_wall_timer( std::chrono::milliseconds( static_cast<int>( run_delta_time * 1000 ) ),
@@ -17,16 +17,13 @@ DecisionMaker::DecisionMaker( const rclcpp::NodeOptions& opts ) :
 void
 DecisionMaker::run()
 {
+
   auto conditions      = conditions::check_conditions( check_list, domain, params );
   auto behaviour_state = requirements::get_decision_state( state_requirements, conditions );
   auto behaviour       = behaviours::execute( behaviour_state, domain, tools );
-  publisher_hub.publish( behaviour );
+  decision_publisher.publish( behaviour, domain );
 
-  if( debug )
-  {
-    std::cerr << "Conditions: " << conditions::condition_to_string( conditions ) << std::endl;
-    std::cerr << "Decision State: " << requirements::decision_state_to_string( behaviour_state ) << std::endl;
-  }
+  print_debug_info( conditions, behaviour_state );
 }
 
 void
@@ -35,29 +32,31 @@ DecisionMaker::init_state_requirements()
   using namespace conditions;
 
   state_requirements = {
-    {  EXIT_SAFETY_CORRIDOR,      STATE | SAFETY_CORRIDOR },
-    {      REMOTE_OPERATION,            STATE | WAYPOINTS },
-    { REQUESTING_ASSISTANCE,      STATE | NEED_ASSISTANCE },
-    {      FOLLOW_REFERENCE, STATE | REFERENCE_TRAJECTORY },
-    {          FOLLOW_ROUTE,    STATE | ROUTE | LOCAL_MAP },
-    { MINIMUM_RISK_MANEUVER,    STATE | ROUTE | LOCAL_MAP },
-    {            STANDSTILL,                        STATE },
-    {        EMERGENCY_STOP,                            0 },
+    {   EXIT_SAFETY_CORRIDOR,                                                  STATE | SAFETY_CORRIDOR },
+    {   FOLLOWING_ASSISTANCE, STATE | IN_ASSISTANCE_ZONE | WAYPOINTS | SUGGESTED_TRAJECTORY_ACCEPTANCE },
+    { WAITING_FOR_ASSISTANCE,                     STATE | IN_ASSISTANCE_ZONE | SENT_ASSISTANCE_REQUEST },
+    {  REQUESTING_ASSISTANCE,                                               STATE | IN_ASSISTANCE_ZONE },
+    {       FOLLOW_REFERENCE,                                             STATE | REFERENCE_TRAJECTORY },
+    {           FOLLOW_ROUTE,                                                            STATE | ROUTE },
+    {  MINIMUM_RISK_MANEUVER,                                                            STATE | ROUTE },
+    {             STANDSTILL,                                                                    STATE },
+    {         EMERGENCY_STOP,                                                                        0 },
   };
 
   set_check( check_list, STATE, state_ok );
+  set_check( check_list, ROUTE, route_available );
+  set_check( check_list, REFERENCE_TRAJECTORY, reference_traj_valid );
   set_check( check_list, SAFETY_CORRIDOR, safety_corridor_present );
   set_check( check_list, WAYPOINTS, waypoints_available );
-  set_check( check_list, REFERENCE_TRAJECTORY, reference_traj_valid );
-  set_check( check_list, ROUTE, route_available );
-  set_check( check_list, LOCAL_MAP, local_map_available );
-  set_check( check_list, NEED_ASSISTANCE, need_assistance );
+  set_check( check_list, IN_ASSISTANCE_ZONE, need_assistance );
+  set_check( check_list, SUGGESTED_TRAJECTORY_ACCEPTANCE, suggested_trajectory_accepted );
+  set_check( check_list, SENT_ASSISTANCE_REQUEST, sent_assistance_request );
 }
 
 void
 DecisionMaker::load_parameters()
 {
-  declare_parameter( "gps_sigma_ok", 0.2 );
+  declare_parameter( "gps_sigma_ok", 1.0 );
   declare_parameter( "min_ref_traj_size", 5 );
   declare_parameter( "max_ref_traj_age", 0.5 );
   declare_parameter( "min_route_length", 4.0 );
@@ -73,6 +72,50 @@ DecisionMaker::load_parameters()
   tools.vehicle_model                = dynamics::PhysicalVehicleModel( vehicle_model_file, false );
   tools.speed_profile.vehicle_params = tools.vehicle_model.params;
   tools.planner.speed_profile        = tools.speed_profile;
+}
+
+void
+DecisionMaker::print_debug_info( size_t conditions, DecisionState behaviour_state )
+{
+  if( debug )
+  {
+    std::cerr << "Conditions: " << conditions::condition_to_string( conditions ) << std::endl;
+    std::cerr << "Decision State: " << requirements::decision_state_to_string( behaviour_state ) << std::endl;
+  }
+}
+
+void
+DecisionPublisher::init( rclcpp::Node& node )
+{
+  trajectory_publisher            = node.create_publisher<TrajectoryAdapter>( "trajectory_decision", 1 );
+  trajectory_suggestion_publisher = node.create_publisher<TrajectoryAdapter>( "trajectory_suggestion", 1 );
+  assistance_publisher            = node.create_publisher<adore_ros2_msgs::msg::AssistanceRequest>( "assistance_request", 1 );
+  traffic_participant_publisher   = node.create_publisher<ParticipantAdapter>( "traffic_participant", 1 );
+}
+
+void
+DecisionPublisher::publish( const Decision& decision, Domain& domain )
+{
+  if( decision.trajectory )
+    trajectory_publisher->publish( *decision.trajectory );
+  if( decision.request_assistance )
+  {
+
+    // TODO
+  }
+  if( decision.trajectory_suggestion )
+    trajectory_suggestion_publisher->publish( *decision.trajectory_suggestion );
+  if( decision.publisher_traffic_participant )
+  {
+    traffic_participant_publisher->publish( *decision.publisher_traffic_participant );
+  }
+  if( decision.reset_assistance_request )
+  {
+    domain.sent_assistance_request         = false;
+    domain.suggested_trajectory_acceptance = false;
+    domain.suggested_trajectory.reset();
+    domain.waypoints.reset();
+  }
 }
 
 

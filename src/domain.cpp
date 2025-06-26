@@ -1,90 +1,59 @@
 #include "domain.hpp"
 
+#include "adore_dynamics_conversions.hpp"
+#include "adore_map_conversions.hpp"
+#include "adore_math_conversions.hpp"
+
 namespace adore
 {
 
 void
 Domain::setup( rclcpp::Node& n )
 {
+  using namespace adore_ros2_msgs;
 
-  latest_vehicle_state.setup( n, "vehicle_state/dynamic", []( const adore_ros2_msgs::msg::VehicleStateDynamic& m )
-  {
-    return dynamics::conversions::to_cpp_type( m );
+  std::string state_topic                           = "vehicle_state/dynamic";
+  std::string route_topic                           = "route";
+  std::string safety_corridor_topic                 = "safety_corridor";
+  std::string vehicle_info_topic                    = "vehicle_info";
+  std::string suggested_trajectory_topic            = "suggested_trajectory";
+  std::string reference_trajectory_topic            = "reference_trajectory";
+  std::string traffic_participants_topic            = "traffic_participants";
+  std::string traffic_signals_topic                 = "traffic_signals";
+  std::string waypoints_topic                       = "remote_operation_waypoints";
+  std::string suggested_trajectory_acceptance_topic = "suggested_trajectory_accepted";
+  std::string caution_zones_topic                   = "caution_zones";
+
+  add_subscription<StateAdapter>( n, state_topic, [&]( const dynamics::VehicleStateDynamic& msg ) { vehicle_state = msg; } );
+
+  add_subscription<RouteAdapter>( n, route_topic, [&]( const map::Route& msg ) { route = msg; } );
+
+  add_subscription<msg::SafetyCorridor>( n, safety_corridor_topic,
+                                         [&]( const adore_ros2_msgs::msg::SafetyCorridor& msg ) { safety_corridor = msg; } );
+
+  add_subscription<VehicleInfoAdapter>( n, vehicle_info_topic, [&]( const dynamics::VehicleInfo& msg ) { vehicle_info = msg; } );
+
+  add_subscription<TrajectoryAdapter>( n, suggested_trajectory_topic,
+                                       [&]( const dynamics::Trajectory& msg ) { suggested_trajectory = msg; } );
+
+  add_subscription<TrajectoryAdapter>( n, reference_trajectory_topic,
+                                       [&]( const dynamics::Trajectory& msg ) { reference_trajectory = msg; } );
+
+  add_subscription<std_msgs::msg::Bool>( n, suggested_trajectory_acceptance_topic,
+                                         [&]( const std_msgs::msg::Bool& msg ) { suggested_trajectory_acceptance = msg.data; } );
+
+  add_subscription<ParticipantSetAdapter>( n, traffic_participants_topic, [&]( const dynamics::TrafficParticipantSet& participants ) {
+    for( const auto& participant : participants.participants )
+      traffic_participants.update_traffic_participants( participant.second );
   } );
 
-  latest_route.setup( n, "route", [=]( const adore_ros2_msgs::msg::Route& m )
-  {
-    auto route = map::conversions::to_cpp_type( m );
-    if( latest_local_map.has_value() )
-    {
-      route.map = std::make_shared<map::Map>( *latest_local_map );
-    }
-    return route;
+  add_subscription<msg::CautionZone>( n, caution_zones_topic, [&]( const msg::CautionZone& msg ) {
+    caution_zones[msg.label] = math::conversions::to_cpp_type( msg.polygon );
   } );
 
-  latest_local_map.setup( n, "local_map", []( const adore_ros2_msgs::msg::Map& m )
-  {
-    return map::conversions::to_cpp_type( m );
-  } );
+  add_subscription<msg::Waypoints>( n, waypoints_topic, [&]( const msg::Waypoints& msg ) { waypoints = msg; } );
 
-  latest_traffic_participants.setup( n, "traffic_participants", []( const adore_ros2_msgs::msg::TrafficParticipantSet& m )
-  {
-    return dynamics::conversions::to_cpp_type( m );
-  } );
-
-  latest_traffic_signals.setup( n, "traffic_signals", []( const adore_ros2_msgs::msg::TrafficSignals& m )
-  {
-    std::vector<map::TrafficLight> stopping_points;
-    // for( const auto& signal : m.signals )
-    // {
-    //   map::TrafficLight tl;
-    //   tl.id = signal.id;
-    //   for( const auto& cp : signal.control_points )
-    //     tl.control_points.emplace_back( cp.x, cp.y );
-    //   tl.state = static_cast<map::TrafficLight::TrafficLightState>( signal.state );
-    //   stopping_points.push_back( tl );
-    // }
-    return stopping_points;
-  } );
-
-  latest_suggested_trajectory.setup( n, "trajectory_suggestion", []( const adore_ros2_msgs::msg::Trajectory& m )
-  {
-    return dynamics::conversions::to_cpp_type( m );
-  } );
-
-  latest_reference_trajectory.setup( n, "reference_trajectory", []( const adore_ros2_msgs::msg::Trajectory& m )
-  {
-    return dynamics::conversions::to_cpp_type( m );
-  } );
-
-  latest_safety_corridor.setup( n, "safety_corridor", []( const adore_ros2_msgs::msg::SafetyCorridor& m )
-  {
-    return m;
-  } );
-
-  latest_vehicle_info.setup( n, "vehicle_info", []( const adore_ros2_msgs::msg::VehicleInfo& m )
-  {
-    return m;
-  } );
-
-  latest_waypoints.setup( n, "remote_operation_waypoints", []( const adore_ros2_msgs::msg::Waypoints& msg )
-  {
-    std::deque<adore::math::Point2d> out;
-    // out.reserve( msg.waypoints.size() );
-    // for( const auto& wp : msg.waypoints )
-    //   out.emplace_back( wp.x, wp.y );
-    return out;
-  } );
-
-  latest_goal.setup( n, "mission/goal_position", []( const adore_ros2_msgs::msg::GoalPoint& g )
-  {
-    return adore::math::Point2d{ g.x_position, g.y_position };
-  } );
-
-  latest_suggested_trajectory_acceptance.setup( n, "suggested_trajectory_accepted", []( const std_msgs::msg::Bool& b )
-  {
-    return b.data;
-  } );
+  add_subscription<msg::TrafficSignal>( n, traffic_signals_topic,
+                                        [&]( const msg::TrafficSignal& msg ) { traffic_signals[msg.signal_group_id] = msg; } );
 }
-
-}; // namespace adore
+} // namespace adore
