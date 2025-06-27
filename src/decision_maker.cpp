@@ -18,6 +18,7 @@
 
 #include "adore_ros2_msgs/msg/traffic_participant_set.hpp"
 #include "adore_ros2_msgs/msg/vehicle_info.hpp"
+#include <adore_map/route.hpp>
 #include <adore_math/point.h>
 
 namespace adore
@@ -374,12 +375,12 @@ DecisionMaker::follow_route()
 {
   dynamics::Trajectory planned_trajectory;
   double               state_s   = latest_route->get_s( latest_vehicle_state.value() );
-  auto                 cut_route = latest_route->get_shortened_route( state_s, 100.0 );
-  for( auto& p : cut_route )
+  // auto                 cut_route = latest_route->get_shortened_route( state_s, 100.0 );
+  for( auto& p : latest_route.value().center_lane )
   {
     if( std::any_of( stopping_points.begin(), stopping_points.end(),
-                     [&]( const auto& s ) { return adore::math::distance_2d( s, p ) < 3.0; } ) )
-      p.max_speed = 0;
+                     [&]( const auto& s ) { return adore::math::distance_2d( s, p.second ) < 3.0; } ) )
+      p.second.max_speed = 0;
   }
   double start_time = now().seconds();
   compute_trajectories_for_traffic_participant_set( traffic_participants );
@@ -493,7 +494,10 @@ DecisionMaker::traffic_signals_callback( const adore_ros2_msgs::msg::TrafficSign
   stopping_points.clear();
   for( const auto& signal : msg.signals )
   {
-    stopping_points.emplace_back( signal.x, signal.y );
+    if ( signal.state == 0)
+    {
+      stopping_points.emplace_back( signal.x, signal.y );
+    }
   }
 }
 
