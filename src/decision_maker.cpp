@@ -335,6 +335,10 @@ DecisionMaker::follow_reference()
 void
 DecisionMaker::compute_trajectories_for_traffic_participant_set( dynamics::TrafficParticipantSet& traffic_participant_set )
 {
+  if( latest_local_map.has_value() )
+  {
+    compute_routes_for_traffic_participant_set( traffic_participant_set );
+  }
   dynamics::TrafficParticipant ego_vehicle;
   ego_vehicle.state = latest_vehicle_state.value();
   ego_vehicle.goal_point = goal;
@@ -342,10 +346,6 @@ DecisionMaker::compute_trajectories_for_traffic_participant_set( dynamics::Traff
   ego_vehicle.route = latest_route;
   ego_vehicle.physical_parameters = model.params;
   traffic_participant_set.participants[ego_vehicle.id] = ego_vehicle;
-  if( latest_local_map.has_value() )
-  {
-    compute_routes_for_traffic_participant_set( traffic_participant_set );
-  }
   multi_agent_PID_planner.plan_trajectories( traffic_participant_set );
 }
 
@@ -381,8 +381,9 @@ DecisionMaker::follow_route()
                      [&]( const auto& s ) { return adore::math::distance_2d( s, p ) < 3.0; } ) )
       p.max_speed = 0;
   }
-
+  double start_time = now().seconds();
   compute_trajectories_for_traffic_participant_set( traffic_participants );
+  std::cerr << "time taken for prediction: " << now().seconds() - start_time << std::setprecision(14) << std::endl;
   opti_nlc_trajectory_planner.speed_profile.vehicle_params = model.params;
   planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
                                                                     traffic_participants );
