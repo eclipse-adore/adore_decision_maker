@@ -126,6 +126,8 @@ private:
   std::deque<adore::math::Point2d>                    latest_waypoints;
   dynamics::TrafficParticipantSet                     traffic_participants;
 
+  double turn_off_participants_duration = 5.0;
+  std::optional<double> turn_off_participants_untill = std::nullopt;
 
   bool latest_trajectory_valid();
   bool latest_route_valid();

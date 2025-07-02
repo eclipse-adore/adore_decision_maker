@@ -91,6 +91,7 @@ DecisionMaker::create_subscribers()
   subscriber_time_headway = create_subscription<std_msgs::msg::Float64>( "time_headway", 1, std::bind( &DecisionMaker::time_headway_callback, this,
       std::placeholders::_1 ) );
 
+  subscriber_user_input = create_subscription<std_msgs::msg::String>( "user_input", 1, std::bind( &DecisionMaker::user_input_callback, this, std::placeholders::_1 ) );
   main_timer = create_wall_timer( std::chrono::milliseconds( static_cast<size_t>( 1000 * dt ) ), std::bind( &DecisionMaker::run, this ) );
 }
 
@@ -544,6 +545,17 @@ DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::Traffi
     return;
   }
 
+  if (turn_off_participants_untill.has_value())
+  {
+    if ( now().seconds() < turn_off_participants_untill.value())
+    {
+      traffic_participants.remove_old_participants(0.0, now().seconds());
+      return;
+    }
+
+    turn_off_participants_untill = std::nullopt;
+  }
+
   auto new_participants_data = dynamics::conversions::to_cpp_type( msg );
 
   // update any old information with new participants
@@ -699,6 +711,13 @@ DecisionMaker::print_debug_info()
   std::cerr << "------- ============================== -------" << std::endl;
 }
 
+void DecisionMaker::user_input_callback( const std_msgs::msg::String& msg )
+{
+  if ( msg.data == "turn off participants" )
+  {
+    turn_off_participants_untill = now().seconds() + turn_off_participants_duration;
+  }
+}
 
 } // namespace adore
 
