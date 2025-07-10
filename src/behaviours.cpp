@@ -60,7 +60,7 @@ Decision
 follow_reference( const Domain& domain, DecisionTools& tools )
 {
   Decision out;
-  out.trajectory        = tools.planner.optimize_trajectory( *domain.vehicle_state, *domain.reference_trajectory );
+  out.trajectory        = *domain.reference_trajectory;
   out.trajectory->label = "Follow Reference";
 
   return out;
@@ -79,7 +79,6 @@ follow_route( const Domain& domain, DecisionTools& tools )
     } ) )
       p.second.max_speed = 0;
   }
-
 
   auto traj      = tools.planner.plan_route_trajectory( route_with_signal, *domain.vehicle_state, domain.traffic_participants );
   traj.label     = "Follow Route";

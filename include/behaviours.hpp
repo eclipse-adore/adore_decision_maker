@@ -14,7 +14,7 @@ namespace adore
 struct Decision
 {
   std::optional<dynamics::Trajectory>         trajectory;
-  std::optional<dynamics::TrafficParticipant> publisher_traffic_participant;
+  std::optional<dynamics::TrafficParticipant> traffic_participant;
 
   std::optional<dynamics::Trajectory> trajectory_suggestion;
   bool                                request_assistance       = false;

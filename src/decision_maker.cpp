@@ -21,8 +21,23 @@ DecisionMaker::run()
   auto conditions      = conditions::check_conditions( check_list, domain, params );
   auto behaviour_state = requirements::get_decision_state( state_requirements, conditions );
   auto behaviour       = behaviours::execute( behaviour_state, domain, tools );
-  decision_publisher.publish( behaviour, domain );
 
+  // always publish participant TODO tidy up
+  dynamics::TrafficParticipant participant;
+  if( domain.vehicle_state )
+    participant.state = domain.vehicle_state.value();
+  if( domain.route )
+  {
+    participant.route      = domain.route.value();
+    participant.goal_point = domain.route.value().destination;
+  }
+  participant.id                  = domain.v2x_id;
+  participant.classification      = dynamics::CAR;
+  participant.physical_parameters = tools.vehicle_model.params;
+
+  behaviour.traffic_participant = participant;
+
+  decision_publisher.publish( behaviour, domain );
   print_debug_info( conditions, behaviour_state );
 }
 
@@ -66,6 +81,9 @@ DecisionMaker::load_parameters()
   get_parameter( "max_ref_traj_age", params.max_ref_traj_age );
   get_parameter( "min_route_length", params.min_route_length );
 
+  declare_parameter( "v2x_id", 0 );
+  get_parameter( "v2x_id", domain.v2x_id );
+
   std::string vehicle_model_file;
   declare_parameter( "vehicle_model_file", "" );
   get_parameter( "vehicle_model_file", vehicle_model_file );
@@ -96,6 +114,8 @@ DecisionPublisher::init( rclcpp::Node& node )
 void
 DecisionPublisher::publish( const Decision& decision, Domain& domain )
 {
+
+
   if( decision.trajectory )
     trajectory_publisher->publish( *decision.trajectory );
   if( decision.request_assistance )
@@ -105,9 +125,9 @@ DecisionPublisher::publish( const Decision& decision, Domain& domain )
   }
   if( decision.trajectory_suggestion )
     trajectory_suggestion_publisher->publish( *decision.trajectory_suggestion );
-  if( decision.publisher_traffic_participant )
+  if( decision.traffic_participant )
   {
-    traffic_participant_publisher->publish( *decision.publisher_traffic_participant );
+    traffic_participant_publisher->publish( *decision.traffic_participant );
   }
   if( decision.reset_assistance_request )
   {

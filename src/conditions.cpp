@@ -76,7 +76,7 @@ need_assistance( const Domain& d, const ConditionParams& )
     if( zone.second.point_inside( *d.vehicle_state ) )
     {
       in_caution_zone = true;
-      break;
+      return true;
     }
   }
   return false;

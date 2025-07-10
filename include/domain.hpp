@@ -22,10 +22,10 @@ struct Domain
 {
   using CautionZones = std::map<std::string, math::Polygon2d>;
 
+  int                                                 v2x_id = 0;
   std::optional<dynamics::VehicleStateDynamic>        vehicle_state;
   std::optional<map::Route>                           route;
   std::optional<adore_ros2_msgs::msg::SafetyCorridor> safety_corridor;
-  std::optional<dynamics::VehicleInfo>                vehicle_info;
   std::optional<dynamics::Trajectory>                 suggested_trajectory;
   std::optional<dynamics::Trajectory>                 reference_trajectory;
   dynamics::TrafficParticipantSet                     traffic_participants;
@@ -35,6 +35,8 @@ struct Domain
 
   bool suggested_trajectory_acceptance;
   bool sent_assistance_request = false;
+
+  double max_participant_age = 1.0;
 
   CautionZones caution_zones;
 
