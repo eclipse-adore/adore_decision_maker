@@ -365,7 +365,19 @@ DecisionMaker::compute_trajectories_for_traffic_participant_set( dynamics::Traff
   ego_vehicle.route = latest_route;
   ego_vehicle.physical_parameters = model.params;
   traffic_participant_set.participants[ego_vehicle.id] = ego_vehicle;
-  multi_agent_PID_planner.plan_trajectories( traffic_participant_set );
+  int status_from_planner = multi_agent_PID_planner.plan_trajectories( traffic_participant_set );
+  if ( status_from_planner == 1 )
+  {
+    overview += "stopping for object, ";
+  }
+  if ( status_from_planner == 2 )
+  {
+    overview += "stopping at goal, ";
+  }
+  if ( status_from_planner == 3 )
+  {
+    overview += "stopping at traffic light, ";
+  }
 }
 
 void
