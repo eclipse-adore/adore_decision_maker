@@ -20,6 +20,7 @@
 #include "adore_ros2_msgs/msg/vehicle_info.hpp"
 #include <adore_map/route.hpp>
 #include <adore_math/point.h>
+#include <dynamics/vehicle_state.hpp>
 
 namespace adore
 {
@@ -42,6 +43,7 @@ DecisionMaker::create_publishers()
   publisher_traffic_participant                  = create_publisher<adore_ros2_msgs::msg::TrafficParticipant>( "traffic_participant", 10 );
   publisher_traffic_participant_with_trajectory_prediction = create_publisher<adore_ros2_msgs::msg::TrafficParticipantSet>( "traffic_prediction", 10 );
   publisher_caution_zones                        = create_publisher<adore_ros2_msgs::msg::CautionZone>( "caution_zones", 10 );
+  publisher_overview                        = create_publisher<std_msgs::msg::String>( "overview", 10 );
 }
 
 void
@@ -184,6 +186,10 @@ DecisionMaker::load_parameters()
 void
 DecisionMaker::run()
 {
+  overview = "";
+  
+  debug_info(debug_mode_active);
+
   update_state();
   if( latest_vehicle_state )
   {
@@ -218,10 +224,9 @@ DecisionMaker::run()
 
   publish_traffic_participant();
 
-  if( debug_mode_active )
-  {
-    print_debug_info();
-  }
+  std_msgs::msg::String overview_msg;
+  overview_msg.data = overview;
+  publisher_overview->publish(overview_msg);
 }
 
 void
@@ -335,6 +340,18 @@ DecisionMaker::follow_reference()
   }
   planned_trajectory.label = "Follow Reference";
   publisher_trajectory->publish( dynamics::conversions::to_ros_msg( planned_trajectory ) );
+
+
+  // Remove trajectories too old
+  // if(!latest_reference_trajectory.has_value()) return;
+  // if(latest_reference_trajectory.value().states.size() == 0) return;
+
+  // dynamics::VehicleStateDynamic state_trajectory = latest_reference_trajectory.value().states[0];
+  // if ( now().seconds() - state_trajectory.time > 2)
+  // {
+  //   latest_reference_trajectory = std::nullopt;
+    
+  // }
 }
 
 void
@@ -394,6 +411,7 @@ DecisionMaker::follow_route()
 
   if( planned_trajectory.states.size() < 2 )
   {
+    overview += "planned trajectory has no more states, ";
     standstill();
     return;
   }
@@ -456,16 +474,20 @@ DecisionMaker::safety_corridor()
 bool
 DecisionMaker::latest_trajectory_valid()
 {
-  if( !latest_vehicle_state && !latest_reference_trajectory )
+  if( !latest_vehicle_state || !latest_reference_trajectory )
     return false;
 
   if( latest_reference_trajectory->states.size() < min_reference_trajectory_size )
   {
+    overview += "latest trajectory has too few states, ";
     return false;
   }
 
-  if( latest_vehicle_state->time - latest_reference_trajectory->states.front().time > 0.5 )
+  // if( latest_vehicle_state->time - latest_reference_trajectory->states.front().time > 0.5 )
+  if( latest_vehicle_state->time - latest_reference_trajectory->states.front().time > 2 ) // Temporarily set high for testing
   {
+    overview += "latest trajectory has wrong time, ";
+    latest_reference_trajectory = std::nullopt;
     return false;
   }
 
@@ -562,11 +584,23 @@ DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::Traffi
 
   for( const auto& [id, new_participant] : new_participants_data.participants )
   {
-    if( id == static_cast<int64_t>( latest_vehicle_info.value().v2x_station_id ) )
+    if( id == static_cast<int64_t>( latest_vehicle_info.value().v2x_station_id ))
     {
       if( new_participant.trajectory.has_value() )
       {
-        latest_reference_trajectory = new_participant.trajectory.value();
+        if (new_participants_data.validity_area.has_value() )
+        {
+          math::Point2d vehicle_position = { latest_vehicle_state.value().x, latest_vehicle_state.value().y };
+
+          if (new_participants_data.validity_area.value().point_inside(vehicle_position))
+          {
+            latest_reference_trajectory = new_participant.trajectory.value();
+          }
+        }
+        else
+        {
+          latest_reference_trajectory = new_participant.trajectory.value();
+        }
       }
       continue;
     }
@@ -646,66 +680,125 @@ DecisionMaker::print_init_info()
 }
 
 void
-DecisionMaker::print_debug_info()
+DecisionMaker::debug_info(bool print)
 {
-  double current_time_seconds = now().seconds();
-  std::cerr << "------- Decision Maker Debug Information -------" << std::endl;
-  std::cerr << "Current Time: " << current_time_seconds << " seconds" << std::endl;
-  std::cerr << "GPS Fix Standard Deviation: " << gps_fix_standard_deviation << std::endl;
-
+  std::string requirements_string;
   if( latest_reference_trajectory )
-    std::cerr << "Reference trajectory available \n";
+  {
+    requirements_string += "Reference trajectory available \n";
+    overview += "Reference trajectory available, ";
+  }
   else
-    std::cerr << "No reference trajectory available \n";
+  {
+    requirements_string += "No reference trajectory available \n";
+  }
 
   if( latest_route )
-    std::cerr << "Route available.\n";
+  {
+    requirements_string += "Route available.\n";
+  }
   else
-    std::cerr << "No route available.\n";
-  if( latest_local_map )
-    std::cerr << "Local map data available.\n";
-  else
-    std::cerr << "No local map data.\n";
-  if( latest_vehicle_state )
-    std::cerr << "Vehicle state available.\n";
-  else
-    std::cerr << "No vehicle state available.\n";
-  if( latest_safety_corridor )
-    std::cerr << "Safety Corridor message received.\n";
-  else
-    std::cerr << "No Safety Corridor message.\n";
+  {
+    requirements_string += "No Route available.\n";
+    overview += "No Route available, ";
+  }
 
-  std::cerr << "waypoints size - " << latest_waypoints.size() << std::endl;
-  std::cerr << "needs assistance " << need_assistance << std::endl;
+  if( latest_local_map )
+  {
+    requirements_string += "Local map data available.\n";
+  }
+  else
+  {
+    requirements_string += "No Local map data available.\n";
+    overview += "No Local map data available, ";
+  }
+
+  if( latest_vehicle_state )
+  {
+    requirements_string += "Vehicle state available.\n";
+  }
+  else
+  {
+    requirements_string += "No Vehicle state available.\n";
+    overview += "No Vehicle state available, ";
+  }
+
+  if( latest_safety_corridor )
+  {
+    overview += "Safety Corridor message received, ";
+    requirements_string += "Safety Corridor message received.\n";
+  }
+  else
+  {
+    requirements_string += "No Safety Corridor message received.\n";
+  }
+
 
   std::string state_string;
   switch( state )
   {
     case FOLLOW_REFERENCE:
+    {
+      overview += "FOLLOW_REFERENCE, ";
       state_string = "FOLLOW_REFERECE";
       break;
+    }
     case FOLLOW_ROUTE:
+    {
+      overview += "FOLLOW ROUTE, ";
       state_string = "FOLLOW_ROUTE";
       break;
+    }
     case SAFETY_CORRIDOR:
+    {
+      overview += "SAFETY_CORRIDOR, ";
       state_string = "SAFETY_CORRIDOR";
       break;
+    }
     case STANDSTILL:
+    {
+      overview += "STANDSTILL, ";
       state_string = "STANDSTILL";
       break;
+    }
     case EMERGENCY_STOP:
+    {
+      overview += "EMERGENCY, ";
       state_string = "EMERGENCY";
       break;
+    }
     case REMOTE_OPERATION:
+    {
+      overview += "REMOTE_OPERATIONS, ";
       state_string = "REMOTE OPERATIONS";
       break;
+    }
     case REQUESTING_ASSISTANCE:
+    {
+      overview += "REQUESTING ASSISTANCE, ";
       state_string = "REQUESTING ASSISTANCE";
       break;
+    }
     default:
+    {
+      overview += "UNKNOWN, ";
       state_string = "UNKNOWN";
       break;
+    }
   }
+
+  if (!print) return;
+  
+  double current_time_seconds = now().seconds();
+  std::cerr << "------- Decision Maker Debug Information -------" << std::endl;
+  std::cerr << "Current Time: " << current_time_seconds << " seconds" << std::endl;
+  std::cerr << "GPS Fix Standard Deviation: " << gps_fix_standard_deviation << std::endl;
+
+  std::cerr << requirements_string << std::endl;
+  
+  std::cerr << "waypoints size - " << latest_waypoints.size() << std::endl;
+  std::cerr << "needs assistance " << need_assistance << std::endl;
+
   std::cerr << "decision maker state - " << state_string << std::endl;
 
   std::cerr << "------- ============================== -------" << std::endl;

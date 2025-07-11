@@ -99,6 +99,7 @@ private:
   rclcpp::Publisher<adore_ros2_msgs::msg::AssistanceRequest>::SharedPtr  publisher_request_assistance_remote_operations;
   rclcpp::Publisher<adore_ros2_msgs::msg::CautionZone>::SharedPtr        publisher_caution_zones;
   rclcpp::Publisher<adore_ros2_msgs::msg::TrafficParticipant>::SharedPtr publisher_traffic_participant;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_overview;
 
 
   // SUBSCRIBERS
@@ -159,6 +160,7 @@ private:
   dynamics::VehicleCommandLimits command_limits                         = { 0.7, -2.0, 2.0 };
   std::map<std::string, double>  planner_settings;
   size_t                         min_reference_trajectory_size = 5;
+  std::string overview;
 
   // OptiNLC related members
   planner::OptiNLCTrajectoryOptimizer opti_nlc_trajectory_optimizer;
@@ -180,7 +182,7 @@ private:
   bool   debug_mode_active          = true;
 
   void print_init_info();
-  void print_debug_info();
+  void debug_info(bool print);
   void create_subscribers();
   void create_publishers();
   void load_parameters();
