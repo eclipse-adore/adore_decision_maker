@@ -48,6 +48,7 @@
 #include "sensor_msgs/msg/nav_sat_fix.hpp"
 #include "std_msgs/msg/bool.hpp"
 #include "std_msgs/msg/string.hpp"
+#include "std_msgs/msg/float64.hpp"
 
 namespace adore
 {
@@ -112,6 +113,7 @@ private:
   rclcpp::Subscription<adore_ros2_msgs::msg::SafetyCorridor>::SharedPtr        subscriber_safety_corridor;
   rclcpp::Subscription<adore_ros2_msgs::msg::TrafficParticipantSet>::SharedPtr subscriber_traffic_participant_set;
   rclcpp::Subscription<adore_ros2_msgs::msg::TrafficParticipantSet>::SharedPtr subscriber_infrastructure_traffic_participants;
+  rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr                      subscriber_time_headway;
 
 
   // LATEST RECEIVED DATA
@@ -140,6 +142,7 @@ private:
   void suggested_trajectory_acceptance_callback( const std_msgs::msg::Bool& msg );
   void traffic_signals_callback( const adore_ros2_msgs::msg::TrafficSignals& msg );
   void traffic_participants_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg );
+  void time_headway_callback( const std_msgs::msg::Float64& msg );
 
   void compute_routes_for_traffic_participant_set( dynamics::TrafficParticipantSet& traffic_participant_set );
   void compute_trajectories_for_traffic_participant_set( dynamics::TrafficParticipantSet& traffic_participant_set );

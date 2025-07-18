@@ -86,6 +86,9 @@ DecisionMaker::create_subscribers()
 
   subscriber_infrastructure_traffic_participants = create_subscription<adore_ros2_msgs::msg::TrafficParticipantSet>(
     "infrastructure_traffic_participants", 10, std::bind( &DecisionMaker::traffic_participants_callback, this, std::placeholders::_1 ) );
+  
+  subscriber_time_headway = create_subscription<std_msgs::msg::Float64>( "time_headway", 1, std::bind( &DecisionMaker::time_headway_callback, this,
+      std::placeholders::_1 ) );
 
   main_timer = create_wall_timer( std::chrono::milliseconds( static_cast<size_t>( 1000 * dt ) ), std::bind( &DecisionMaker::run, this ) );
 }
@@ -475,6 +478,15 @@ DecisionMaker::latest_route_valid()
     return false;
   double remaining_route_length = latest_route->get_length() - latest_route->get_s( *latest_vehicle_state );
   return remaining_route_length > min_route_length;
+}
+
+void
+DecisionMaker::time_headway_callback( const std_msgs::msg::Float64& msg )
+{
+  double time_headway = msg.data;
+  std::map<std::string, double> params;
+  params["time_headway"] = time_headway;
+  multi_agent_PID_planner.set_parameters( params );
 }
 
 void
