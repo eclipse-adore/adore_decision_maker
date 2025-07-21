@@ -24,7 +24,6 @@ struct Decision
 struct DecisionTools
 {
   planner::TrajectoryPlanner     planner;
-  planner::SpeedProfile          speed_profile;
   dynamics::PhysicalVehicleModel vehicle_model;
 };
 

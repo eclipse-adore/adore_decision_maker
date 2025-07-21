@@ -44,7 +44,7 @@ private:
   void print_debug_info( size_t conditions, DecisionState state );
 
   double run_delta_time = 0.1; // seconds, how often to run the decision maker
-  bool   debug          = true;
+  bool   debug          = false;
 };
 
 } // namespace adore

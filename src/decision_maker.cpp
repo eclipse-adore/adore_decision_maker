@@ -84,12 +84,27 @@ DecisionMaker::load_parameters()
   declare_parameter( "v2x_id", 0 );
   get_parameter( "v2x_id", domain.v2x_id );
 
+  // Planner related parameters
+  std::vector<std::string> keys;
+  std::vector<double>      values;
+  declare_parameter( "planner_settings_keys", keys );
+  declare_parameter( "planner_settings_values", values );
+  get_parameter( "planner_settings_keys", keys );
+  get_parameter( "planner_settings_values", values );
+
+  std::map<std::string, double> planner_params;
+  if( keys.size() == values.size() )
+  {
+    for( size_t i = 0; i < keys.size(); i++ )
+      planner_params[keys[i]] = values[i];
+  }
+  tools.planner.set_parameters( planner_params );
+
   std::string vehicle_model_file;
   declare_parameter( "vehicle_model_file", "" );
   get_parameter( "vehicle_model_file", vehicle_model_file );
-  tools.vehicle_model                = dynamics::PhysicalVehicleModel( vehicle_model_file, false );
-  tools.speed_profile.vehicle_params = tools.vehicle_model.params;
-  tools.planner.speed_profile        = tools.speed_profile;
+  tools.vehicle_model = dynamics::PhysicalVehicleModel( vehicle_model_file, false );
+  tools.planner.set_vehicle_parameters( tools.vehicle_model.params );
 }
 
 void
