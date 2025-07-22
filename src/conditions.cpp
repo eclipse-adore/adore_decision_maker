@@ -3,28 +3,6 @@
 namespace adore::conditions
 {
 
-size_t
-check_conditions( const CheckList& all_checks, const Domain& d, const ConditionParams& p )
-{
-  size_t condition = 0;
-
-  for( const auto& [c, fn] : all_checks )
-  {
-    if( fn( d, p ) )
-    {
-      condition |= static_cast<size_t>( c );
-    }
-  }
-
-  return condition;
-}
-
-void
-set_check( CheckList& all_checks, Condition c, CheckFn fn )
-{
-  all_checks[c] = std::move( fn );
-}
-
 bool
 state_ok( const Domain& d, const ConditionParams& p )
 {

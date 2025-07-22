@@ -6,34 +6,6 @@ namespace adore::behaviours
 {
 
 Decision
-execute( DecisionState s, const Domain& domain, DecisionTools& tools )
-{
-  switch( s )
-  {
-    case STANDSTILL:
-      return standstill( domain, tools );
-    case FOLLOW_REFERENCE:
-      return follow_reference( domain, tools );
-    case FOLLOW_ROUTE:
-      return follow_route( domain, tools );
-    case FOLLOWING_ASSISTANCE:
-      return follow_assistance( domain, tools );
-    case EXIT_SAFETY_CORRIDOR:
-      return safety_corridor( domain, tools );
-    case REQUESTING_ASSISTANCE:
-      return request_assistance( domain, tools );
-    case WAITING_FOR_ASSISTANCE:
-      return waiting_for_assistance( domain, tools );
-    case MINIMUM_RISK_MANEUVER:
-      return minimum_risk( domain, tools );
-    case EMERGENCY_STOP:
-      return emergency_stop( domain, tools );
-    default:
-      return emergency_stop( domain, tools );
-  }
-}
-
-Decision
 emergency_stop( const Domain& domain, DecisionTools& )
 {
   Decision             out;

@@ -28,20 +28,16 @@ public:
 
 private:
 
-  Domain                      domain;
-  conditions::ConditionParams params;
-  conditions::CheckList       check_list;
-
-  rclcpp::TimerBase::SharedPtr  timer;
-  DecisionPublisher             decision_publisher;
-  std::vector<StateRequirement> state_requirements;
+  Domain                       domain;
+  conditions::ConditionParams  params;
+  rclcpp::TimerBase::SharedPtr timer;
+  DecisionPublisher            publisher;
 
   DecisionTools tools;
 
-  void load_parameters();
-  void run(); // main loop
-  void init_state_requirements();
-  void print_debug_info( size_t conditions, DecisionState state );
+  void                         load_parameters();
+  void                         run(); // main loop
+  dynamics::TrafficParticipant make_participant();
 
   double run_delta_time = 0.1; // seconds, how often to run the decision maker
   bool   debug          = false;
