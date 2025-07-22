@@ -336,8 +336,27 @@ DecisionMaker::follow_reference()
   }
   else
   {
-    planned_trajectory = *latest_reference_trajectory;
+    std::cerr << "reached reference trajectory area" << std::endl;
+    dynamics::TrafficParticipantSet ego_as_participant_set;
+    dynamics::TrafficParticipant ego_vehicle;
+    ego_vehicle.state = latest_vehicle_state.value();
+    ego_vehicle.goal_point = goal;
+    ego_vehicle.id = ego_id;
+    ego_vehicle.route = latest_route;
+    ego_vehicle.physical_parameters = model.params;
+    ego_vehicle.trajectory = latest_reference_trajectory.value();
+    ego_as_participant_set.participants[ego_vehicle.id] = ego_vehicle;
+    std::cerr << "infra trajectory time diff: " << now().seconds() - latest_reference_trajectory.value().states.front().time << std::setprecision(16) << std::endl;
+    planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
+    ego_as_participant_set );
+    // planned_trajectory = *latest_reference_trajectory;
+    // int status_from_planner = multi_agent_PID_planner.plan_trajectories( ego_as_participant_set );
+    // std::cerr << "normal trajectory" << std::endl;
+    // dynamics::Trajectory temp_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
+    // ego_as_participant_set );
+    // publisher_traffic_participant_with_trajectory_prediction->publish( dynamics::conversions::to_ros_msg( ego_as_participant_set ) );
   }
+  planned_trajectory.adjust_start_time( latest_vehicle_state->time );
   planned_trajectory.label = "Follow Reference";
   publisher_trajectory->publish( dynamics::conversions::to_ros_msg( planned_trajectory ) );
 
@@ -495,8 +514,8 @@ DecisionMaker::latest_trajectory_valid()
     return false;
   }
 
-  // if( latest_vehicle_state->time - latest_reference_trajectory->states.front().time > 0.5 )
-  if( latest_vehicle_state->time - latest_reference_trajectory->states.front().time > 2 ) // Temporarily set high for testing
+  if( latest_vehicle_state->time - latest_reference_trajectory->states.front().time > 0.5 )
+  // if( latest_vehicle_state->time - latest_reference_trajectory->states.front().time > 2 ) // Temporarily set high for testing
   {
     overview += "latest trajectory has wrong time, ";
     latest_reference_trajectory = std::nullopt;
@@ -579,18 +598,20 @@ DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::Traffi
     return;
   }
 
-  if (turn_off_participants_untill.has_value())
-  {
-    if ( now().seconds() < turn_off_participants_untill.value())
-    {
-      traffic_participants.remove_old_participants(0.0, now().seconds());
-      return;
-    }
+  // if (turn_off_participants_untill.has_value())
+  // {
+  //   if ( now().seconds() < turn_off_participants_untill.value())
+  //   {
+  //     traffic_participants.remove_old_participants(0.0, now().seconds());
+  //     return;
+  //   }
 
-    turn_off_participants_untill = std::nullopt;
-  }
+  //   turn_off_participants_untill = std::nullopt;
+  // }
 
   auto new_participants_data = dynamics::conversions::to_cpp_type( msg );
+  std::cerr << "ros data size: " << msg.data.size() << std::endl;
+  std::cerr << "participant data size: " << new_participants_data.participants.size() << std::endl;
 
   // update any old information with new participants
 
@@ -598,24 +619,38 @@ DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::Traffi
   {
     if( id == static_cast<int64_t>( latest_vehicle_info.value().v2x_station_id ))
     {
-      if( new_participant.trajectory.has_value() )
-      {
-        if (new_participants_data.validity_area.has_value() )
-        {
-          math::Point2d vehicle_position = { latest_vehicle_state.value().x, latest_vehicle_state.value().y };
 
-          if (new_participants_data.validity_area.value().point_inside(vehicle_position))
-          {
-            latest_reference_trajectory = new_participant.trajectory.value();
-          }
-        }
-        else
-        {
-          latest_reference_trajectory = new_participant.trajectory.value();
-        }
+      if ( now().seconds() - new_participant.state.time > 0.5 )
+      {
+        std::cerr << "Trajectory to old: " << now().seconds() - new_participant.state.time << std::endl;
       }
+
+      std::cerr << "Participant 4: " << id << ", " << now().seconds() - new_participant.state.time << std::endl;
+
+      
+      if( !new_participant.trajectory.has_value() )
+      {
+        continue;
+      }
+
+      if ( !new_participants_data.validity_area.has_value() )
+      {
+        latest_reference_trajectory = new_participant.trajectory.value();
+        continue;
+      }
+
+      math::Point2d vehicle_position = { latest_vehicle_state.value().x, latest_vehicle_state.value().y };
+
+      if ( new_participants_data.validity_area.value().point_inside(vehicle_position))
+      {
+          latest_reference_trajectory = new_participant.trajectory.value();
+          std::cerr << "Time difference: " << latest_vehicle_state->time - latest_reference_trajectory->states.front().time << std::endl;
+          continue;
+      }
+
       continue;
     }
+
     traffic_participants.update_traffic_participants( new_participant );
   }
 
