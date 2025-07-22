@@ -387,7 +387,6 @@ DecisionMaker::follow_route()
   double start_time = now().seconds();
   compute_trajectories_for_traffic_participant_set( traffic_participants );
   std::cerr << "time taken for prediction: " << now().seconds() - start_time << std::setprecision(14) << std::endl;
-  opti_nlc_trajectory_planner.speed_profile.vehicle_params = model.params;
   planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
                                                                     traffic_participants );
 
