@@ -333,7 +333,7 @@ DecisionMaker::follow_reference()
   }
   else
   {
-    std::cerr << "reached reference trajectory area" << std::endl;
+    std::cerr << "reached reference trajectory" << std::endl;
     dynamics::TrafficParticipantSet ego_as_participant_set;
     dynamics::TrafficParticipant ego_vehicle;
     ego_vehicle.state = latest_vehicle_state.value();
@@ -343,7 +343,6 @@ DecisionMaker::follow_reference()
     ego_vehicle.physical_parameters = model.params;
     ego_vehicle.trajectory = latest_reference_trajectory.value();
     ego_as_participant_set.participants[ego_vehicle.id] = ego_vehicle;
-    std::cerr << "infra trajectory time diff: " << now().seconds() - latest_reference_trajectory.value().states.front().time << std::setprecision(16) << std::endl;
     planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
     ego_as_participant_set );
     // planned_trajectory = *latest_reference_trajectory;
@@ -423,7 +422,7 @@ void
 DecisionMaker::follow_route()
 {
   dynamics::Trajectory planned_trajectory;
-  double               state_s   = latest_route->get_s( latest_vehicle_state.value() );
+  // double               state_s   = latest_route->get_s( latest_vehicle_state.value() );
   // auto                 cut_route = latest_route->get_shortened_route( state_s, 100.0 );
   for( auto& p : latest_route.value().center_lane )
   {
@@ -643,8 +642,6 @@ DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::Traffi
   // }
 
   auto new_participants_data = dynamics::conversions::to_cpp_type( msg );
-  std::cerr << "ros data size: " << msg.data.size() << std::endl;
-  std::cerr << "participant data size: " << new_participants_data.participants.size() << std::endl;
 
   // update any old information with new participants
 
