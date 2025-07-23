@@ -38,7 +38,7 @@ DecisionMaker::make_participant()
   }
   participant.id                  = domain.v2x_id;
   participant.classification      = dynamics::CAR;
-  participant.physical_parameters = tools.vehicle_model.params;
+  participant.physical_parameters = tools.vehicle_model->params;
   return participant;
 }
 
@@ -62,10 +62,10 @@ DecisionMaker::load_parameters()
   }
   tools.planner.set_parameters( planner_params );
   std::string vehicle_model_file = declare_parameter( "vehicle_model_file", "" );
-  tools.vehicle_model            = dynamics::PhysicalVehicleModel( vehicle_model_file, false );
-  tools.planner.set_vehicle_parameters( tools.vehicle_model.params );
-
-  tools.planner.set_comfort_settings( tools.comfort_settings ); // default value comfort settings
+  tools.vehicle_model            = std::make_shared<dynamics::PhysicalVehicleModel>( vehicle_model_file, false );
+  tools.comfort_settings         = std::make_shared<dynamics::ComfortSettings>(); // default value comfort settings
+  tools.planner.set_vehicle_parameters( tools.vehicle_model->params );
+  tools.planner.set_comfort_settings( tools.comfort_settings );
 }
 
 // -----------------------------------------------------------------------------

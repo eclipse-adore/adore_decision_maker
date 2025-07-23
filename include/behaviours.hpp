@@ -22,9 +22,9 @@ struct Decision
 
 struct DecisionTools
 {
-  planner::TrajectoryPlanner     planner;
-  dynamics::PhysicalVehicleModel vehicle_model;
-  dynamics::ComfortSettings      comfort_settings;
+  planner::TrajectoryPlanner                      planner;
+  std::shared_ptr<dynamics::PhysicalVehicleModel> vehicle_model;
+  std::shared_ptr<dynamics::ComfortSettings>      comfort_settings;
 };
 
 namespace behaviours

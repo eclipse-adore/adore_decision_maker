@@ -70,7 +70,7 @@ waiting_for_assistance( const Domain& domain, DecisionTools& tools )
   {
     // if we have waypoints, create trajectory to send
     dynamics::Trajectory trajectory = planner::waypoints_to_trajectory( *domain.vehicle_state, domain.waypoints->waypoints,
-                                                                        domain.traffic_participants, tools.vehicle_model );
+                                                                        domain.traffic_participants, *tools.vehicle_model );
     trajectory.label                = "Suggested Trajectory";
     trajectory.adjust_start_time( domain.vehicle_state->time );
     out.trajectory_suggestion = std::move( trajectory );
@@ -88,7 +88,7 @@ follow_assistance( const Domain& domain, DecisionTools& tools )
   out.reset_assistance_request = false;
 
   dynamics::Trajectory trajectory = planner::waypoints_to_trajectory( *domain.vehicle_state, domain.waypoints->waypoints,
-                                                                      domain.traffic_participants, tools.vehicle_model );
+                                                                      domain.traffic_participants, *tools.vehicle_model );
   trajectory.label                = "Follow Assistance";
   trajectory.adjust_start_time( domain.vehicle_state->time );
   out.trajectory = std::move( trajectory );
@@ -101,11 +101,11 @@ safety_corridor( const Domain& domain, DecisionTools& tools )
 {
   Decision out; // calculate trajectory getting out of safety corridor
   auto     right_forward_points = planner::filter_points_in_front( domain.safety_corridor->right_border, *domain.vehicle_state );
-  auto     safety_waypoints     = planner::shift_points_right( right_forward_points, tools.vehicle_model.params.body_width );
+  auto     safety_waypoints     = planner::shift_points_right( right_forward_points, tools.vehicle_model->params.body_width );
   double   target_speed         = planner::is_point_to_right_of_line( *domain.vehicle_state, right_forward_points ) ? 0 : 2.0;
 
   auto planned_trajectory = planner::waypoints_to_trajectory( *domain.vehicle_state, safety_waypoints, domain.traffic_participants,
-                                                              tools.vehicle_model, target_speed );
+                                                              *tools.vehicle_model, target_speed );
 
   planned_trajectory = tools.planner.optimize_trajectory( *domain.vehicle_state, planned_trajectory );
 
@@ -132,7 +132,7 @@ minimum_risk( const Domain& domain, DecisionTools& tools )
   double state_s            = domain.route->get_s( *domain.vehicle_state );
   auto   cut_route          = domain.route->get_shortened_route( state_s, 100.0 );
   auto   planned_trajectory = planner::waypoints_to_trajectory( *domain.vehicle_state, cut_route, domain.traffic_participants,
-                                                                tools.vehicle_model, 0.0 /* target_speed */ );
+                                                                *tools.vehicle_model, 0.0 /* target_speed */ );
 
   planned_trajectory = tools.planner.optimize_trajectory( *domain.vehicle_state, planned_trajectory );
   if( planned_trajectory.states.size() < 2 )
