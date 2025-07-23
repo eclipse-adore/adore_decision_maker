@@ -5,6 +5,7 @@
 
 #include "conditions.hpp"
 #include "domain.hpp"
+#include "dynamics/comfort_settings.hpp"
 #include "planning/trajectory_planner.hpp"
 
 namespace adore
@@ -23,6 +24,7 @@ struct DecisionTools
 {
   planner::TrajectoryPlanner     planner;
   dynamics::PhysicalVehicleModel vehicle_model;
+  dynamics::ComfortSettings      comfort_settings;
 };
 
 namespace behaviours

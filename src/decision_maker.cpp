@@ -64,8 +64,13 @@ DecisionMaker::load_parameters()
   std::string vehicle_model_file = declare_parameter( "vehicle_model_file", "" );
   tools.vehicle_model            = dynamics::PhysicalVehicleModel( vehicle_model_file, false );
   tools.planner.set_vehicle_parameters( tools.vehicle_model.params );
+
+  tools.planner.set_comfort_settings( tools.comfort_settings ); // default value comfort settings
 }
 
+// -----------------------------------------------------------------------------
+// ----- PUBLISHING ------------------------------------------------------------
+// -----------------------------------------------------------------------------
 void
 DecisionPublisher::init( rclcpp::Node& node )
 {
