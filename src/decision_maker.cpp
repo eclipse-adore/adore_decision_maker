@@ -626,21 +626,21 @@ DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::Traffi
     return;
   }
 
-  // if (turn_off_participants_untill.has_value())
-  // {
-  //   if ( now().seconds() < turn_off_participants_untill.value())
-  //   {
-  //     traffic_participants.remove_old_participants(0.0, now().seconds());
-  //     return;
-  //   }
-
-  //   turn_off_participants_untill = std::nullopt;
-  // }
-
-  for ( auto participant : msg.data )
+  if (turn_off_participants_untill.has_value())
   {
-    std::cerr << "Participant delay 5: " << participant.participant_data.v2x_station_id << ", " << now().seconds() - participant.participant_data.motion_state.time << std::endl;
+    if ( now().seconds() < turn_off_participants_untill.value())
+    {
+      traffic_participants.remove_old_participants(0.0, now().seconds());
+      return;
+    }
+
+    turn_off_participants_untill = std::nullopt;
   }
+
+  // for ( auto participant : msg.data )
+  // {
+  //   std::cerr << "Participant delay 5: " << participant.participant_data.v2x_station_id << ", " << now().seconds() - participant.participant_data.motion_state.time << std::endl;
+  // }
 
   auto new_participants_data = dynamics::conversions::to_cpp_type( msg );
   std::cerr << "ros data size: " << msg.data.size() << std::endl;
@@ -653,7 +653,7 @@ DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::Traffi
     traffic_participants.update_traffic_participants( new_participant );
   }
 
-  // traffic_participants.remove_old_participants( 1.0, now().seconds() ); // @TODO, move this to a callback function?
+  traffic_participants.remove_old_participants( 1.0, now().seconds() ); // @TODO, move this to a callback function?
 }
 
 void
