@@ -143,6 +143,7 @@ private:
   void suggested_trajectory_acceptance_callback( const std_msgs::msg::Bool& msg );
   void traffic_signals_callback( const adore_ros2_msgs::msg::TrafficSignals& msg );
   void traffic_participants_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg );
+  void infrastructure_traffic_participants_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg );
   void user_input_callback( const std_msgs::msg::String& msg );
 
   void compute_routes_for_traffic_participant_set( dynamics::TrafficParticipantSet& traffic_participant_set );
