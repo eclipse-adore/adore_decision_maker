@@ -403,10 +403,15 @@ DecisionMaker::compute_routes_for_traffic_participant_set( dynamics::TrafficPart
 {
   for( auto& [id, participant] : traffic_participant_set.participants )
   {
-    bool no_goal  = !participant.goal_point.has_value();
-    bool no_route = !participant.route.has_value();
+    bool has_goal  = participant.goal_point.has_value();
+    bool has_route = participant.route.has_value();
+    if ( !has_goal )
+    {
+      participant.goal_point = goal;
+      has_goal = true;
+    }
 
-    if( !no_goal && no_route )
+    if( has_goal && !has_route )
     {
         participant.route = map::Route( participant.state, participant.goal_point.value(), *latest_local_map );
         if( participant.route->center_lane.empty() )
