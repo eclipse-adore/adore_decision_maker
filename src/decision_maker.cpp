@@ -403,54 +403,6 @@ DecisionMaker::compute_trajectories_for_traffic_participant_set( dynamics::Traff
   if( !latest_vehicle_info.has_value() )
   {
     RCLCPP_ERROR( this->get_logger(), "Cannot compute trajectories: vehicle info not available" );
-    return;
-  }
-  
-  if( !latest_vehicle_state.has_value() )
-  {
-    RCLCPP_ERROR( this->get_logger(), "Cannot compute trajectories: vehicle state not available" );
-    return;
-  }
-  
-  try
-  {
-    dynamics::TrafficParticipant ego_vehicle;
-    ego_vehicle.state = latest_vehicle_state.value();
-    ego_vehicle.goal_point = goal;
-    ego_vehicle.id = static_cast<int64_t>(latest_vehicle_info->v2x_station_id);
-    ego_vehicle.route = latest_route;
-    ego_vehicle.physical_parameters = model.params;
-    
-    if( traffic_participant_set.participants.find(ego_vehicle.id) != traffic_participant_set.participants.end() )
-    {
-      RCLCPP_WARN( this->get_logger(), "Ego vehicle ID %ld already exists in traffic participants, replacing", ego_vehicle.id );
-    }
-    
-    traffic_participant_set.participants[ego_vehicle.id] = ego_vehicle;
-    
-    RCLCPP_DEBUG( this->get_logger(), "Added ego vehicle with ID %ld to traffic participant set (total: %zu participants)", 
-                  ego_vehicle.id, traffic_participant_set.participants.size() );
-    
-    multi_agent_PID_planner.plan_trajectories( traffic_participant_set );
-  }
-  catch( const std::exception& e )
-  {
-    RCLCPP_ERROR( this->get_logger(), "Exception in multi-agent trajectory planning: %s", e.what() );
-    traffic_participant_set.participants.clear();
-  }
-}
-
-void
-DecisionMaker::compute_trajectories_for_traffic_participant_set( dynamics::TrafficParticipantSet& traffic_participant_set )
-{
-  if( latest_local_map.has_value() )
-  {
-    compute_routes_for_traffic_participant_set( traffic_participant_set );
-  }
-  
-  if( !latest_vehicle_info.has_value() )
-  {
-    RCLCPP_ERROR( this->get_logger(), "Cannot compute trajectories: vehicle info not available" );
     return; // This early return is the problem!
   }
   
