@@ -46,7 +46,6 @@ DecisionMaker::create_publishers()
 void
 DecisionMaker::create_subscribers()
 {
-  // Subscriber for route information
   subscriber_route = create_subscription<adore_ros2_msgs::msg::Route>( "route", 1,
                                                                        std::bind( &DecisionMaker::route_callback, this,
                                                                                   std::placeholders::_1 ) );
@@ -58,7 +57,6 @@ DecisionMaker::create_subscribers()
   subscriber_vehicle_state = create_subscription<adore_ros2_msgs::msg::VehicleStateDynamic>(
     "vehicle_state/dynamic", 1, std::bind( &DecisionMaker::vehicle_state_callback, this, std::placeholders::_1 ) );
 
-  // Subscriber for local map updates
   subscriber_local_map = create_subscription<adore_ros2_msgs::msg::Map>( "local_map", 1,
                                                                          std::bind( &DecisionMaker::local_map_callback, this,
                                                                                     std::placeholders::_1 ) );
@@ -136,7 +134,6 @@ DecisionMaker::load_parameters()
   command_limits.max_acceleration   = std::min( command_limits.max_acceleration, model.params.acceleration_max );
   command_limits.min_acceleration   = std::max( command_limits.min_acceleration, model.params.acceleration_min );
 
-  // Planner related parameters
   std::vector<std::string> keys;
   std::vector<double>      values;
   declare_parameter( "planner_settings_keys", keys );
@@ -144,12 +141,11 @@ DecisionMaker::load_parameters()
   get_parameter( "planner_settings_keys", keys );
   get_parameter( "planner_settings_values", values );
 
-  std::vector<double> ra_polygon_values; // request assistance polygon
+  std::vector<double> ra_polygon_values;
   declare_parameter( "request_assistance_polygon", std::vector<double>{} );
   get_parameter( "request_assistance_polygon", ra_polygon_values );
 
-  // Convert the parameter into a Polygon2d
-  if( ra_polygon_values.size() >= 6 ) // minimum 3 x, 3 y
+  if( ra_polygon_values.size() >= 6 )
   {
     adore::math::Polygon2d polygon;
     polygon.points.reserve( ra_polygon_values.size() / 2 );
@@ -163,16 +159,15 @@ DecisionMaker::load_parameters()
     caution_zones["Request Assistance"] = polygon;
   }
 
-  // If keys & values mismatch
   if( keys.size() != values.size() )
   {
-    RCLCPP_ERROR( this->get_logger(), "planner settings keys and values size mismatch!" );
+    RCLCPP_ERROR( this->get_logger(), "Planner settings keys and values size mismatch! Keys: %zu, Values: %zu", keys.size(), values.size() );
     return;
   }
   for( size_t i = 0; i < keys.size(); ++i )
   {
     planner_settings.insert( { keys[i], values[i] } );
-    std::cerr << "keys: " << keys[i] << ": " << values[i] << std::endl;
+    RCLCPP_DEBUG( this->get_logger(), "Planner parameter: %s = %f", keys[i].c_str(), values[i] );
   }
 
   opti_nlc_trajectory_planner.set_parameters( planner_settings );
@@ -189,29 +184,37 @@ DecisionMaker::run()
     dynamics::integrate_up_to_time( *latest_vehicle_state, last_control, now().seconds(), model.motion_model );
   }
 
-  switch( state )
+  try 
   {
-    case FOLLOW_REFERENCE:
-      follow_reference();
-      break;
-    case FOLLOW_ROUTE:
-      follow_route();
-      break;
-    case STANDSTILL:
-      standstill();
-      break;
-    case REMOTE_OPERATION:
-      remote_operation();
-      break;
-    case SAFETY_CORRIDOR:
-      safety_corridor();
-      break;
-    case REQUESTING_ASSISTANCE:
-      request_assistance();
-      break;
-    default:
-      emergency_stop();
-      break;
+    switch( state )
+    {
+      case FOLLOW_REFERENCE:
+        follow_reference();
+        break;
+      case FOLLOW_ROUTE:
+        follow_route();
+        break;
+      case STANDSTILL:
+        standstill();
+        break;
+      case REMOTE_OPERATION:
+        remote_operation();
+        break;
+      case SAFETY_CORRIDOR:
+        safety_corridor();
+        break;
+      case REQUESTING_ASSISTANCE:
+        request_assistance();
+        break;
+      default:
+        emergency_stop();
+        break;
+    }
+  }
+  catch( const std::exception& e )
+  {
+    RCLCPP_ERROR( this->get_logger(), "Exception in decision maker run loop: %s", e.what() );
+    emergency_stop();
   }
 
   publish_traffic_participant();
@@ -242,7 +245,6 @@ DecisionMaker::update_state()
   if( need_assistance )
     current_conditions |= NEED_ASSISTANCE;
 
-  // Loop through the constexpr array in order of priority
   for( const auto& state_requirement : state_priority )
   {
     if( ( current_conditions & state_requirement.required_conditions ) == state_requirement.required_conditions )
@@ -274,6 +276,7 @@ DecisionMaker::check_caution_zones()
 void
 DecisionMaker::emergency_stop()
 {
+  RCLCPP_WARN( this->get_logger(), "Executing emergency stop" );
   dynamics::Trajectory emergency_stop_trajectory;
   if( latest_vehicle_state )
     emergency_stop_trajectory.states.push_back( latest_vehicle_state.value() );
@@ -342,14 +345,29 @@ DecisionMaker::compute_trajectories_for_traffic_participant_set( dynamics::Traff
   {
     compute_routes_for_traffic_participant_set( traffic_participant_set );
   }
+  
+  if( !latest_vehicle_info.has_value() )
+  {
+    RCLCPP_ERROR( this->get_logger(), "Cannot compute trajectories: vehicle info not available" );
+    return;
+  }
+  
   dynamics::TrafficParticipant ego_vehicle;
   ego_vehicle.state = latest_vehicle_state.value();
   ego_vehicle.goal_point = goal;
-  ego_vehicle.id = ego_id;
+  ego_vehicle.id = latest_vehicle_info->v2x_station_id;
   ego_vehicle.route = latest_route;
   ego_vehicle.physical_parameters = model.params;
   traffic_participant_set.participants[ego_vehicle.id] = ego_vehicle;
-  multi_agent_PID_planner.plan_trajectories( traffic_participant_set );
+  
+  try
+  {
+    multi_agent_PID_planner.plan_trajectories( traffic_participant_set );
+  }
+  catch( const std::exception& e )
+  {
+    RCLCPP_ERROR( this->get_logger(), "Exception in multi-agent trajectory planning: %s", e.what() );
+  }
 }
 
 void
@@ -366,7 +384,7 @@ DecisionMaker::compute_routes_for_traffic_participant_set( dynamics::TrafficPart
         if( participant.route->center_lane.empty() )
         {
           participant.route = std::nullopt;
-          std::cerr << "No route found for traffic participant" << std::endl;
+          RCLCPP_WARN( this->get_logger(), "No route found for traffic participant %ld", id );
         }
     }
   }
@@ -375,26 +393,51 @@ DecisionMaker::compute_routes_for_traffic_participant_set( dynamics::TrafficPart
 void
 DecisionMaker::follow_route()
 {
+  if( !latest_route || !latest_vehicle_state || !latest_local_map )
+  {
+    RCLCPP_ERROR( this->get_logger(), "Missing required data for route following: route=%s, vehicle_state=%s, local_map=%s",
+                  latest_route ? "OK" : "MISSING",
+                  latest_vehicle_state ? "OK" : "MISSING", 
+                  latest_local_map ? "OK" : "MISSING" );
+    standstill();
+    return;
+  }
+
   dynamics::Trajectory planned_trajectory;
-  double               state_s   = latest_route->get_s( latest_vehicle_state.value() );
-  auto                 cut_route = latest_route->get_shortened_route( state_s, 100.0 );
+  double state_s = latest_route->get_s( latest_vehicle_state.value() );
+  auto cut_route = latest_route->get_shortened_route( state_s, 100.0 );
+  
   for( auto& p : cut_route )
   {
     if( std::any_of( stopping_points.begin(), stopping_points.end(),
                      [&]( const auto& s ) { return adore::math::distance_2d( s, p ) < 3.0; } ) )
       p.max_speed = 0;
   }
+  
   double start_time = now().seconds();
   compute_trajectories_for_traffic_participant_set( traffic_participants );
-  std::cerr << "time taken for prediction: " << now().seconds() - start_time << std::setprecision(14) << std::endl;
-  planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
-                                                                    traffic_participants );
-
-  if( planned_trajectory.states.size() < 2 )
+  double prediction_time = now().seconds() - start_time;
+  RCLCPP_DEBUG( this->get_logger(), "Traffic prediction computation took %.6f seconds", prediction_time );
+  
+  try 
   {
+    planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
+                                                                      traffic_participants );
+  }
+  catch( const std::exception& e )
+  {
+    RCLCPP_ERROR( this->get_logger(), "Exception in trajectory planning: %s", e.what() );
     standstill();
     return;
   }
+
+  if( planned_trajectory.states.size() < 2 )
+  {
+    RCLCPP_WARN( this->get_logger(), "Planned trajectory too short (%zu states), switching to standstill", planned_trajectory.states.size() );
+    standstill();
+    return;
+  }
+  
   planned_trajectory.adjust_start_time( latest_vehicle_state->time );
   planned_trajectory.label = "Follow Route";
   publisher_trajectory->publish( dynamics::conversions::to_ros_msg( planned_trajectory ) );
@@ -415,7 +458,6 @@ DecisionMaker::minimum_risk_maneuver()
   planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
                                                                     traffic_participants );
 
-
   if( planned_trajectory.states.size() < 2 )
   {
     standstill();
@@ -433,7 +475,6 @@ DecisionMaker::safety_corridor()
 
   if( latest_safety_corridor.has_value() )
   {
-    // calculate trajectory getting out of safety corridor
     auto   right_forward_points = planner::filter_points_in_front( latest_safety_corridor->right_border, *latest_vehicle_state );
     auto   safety_waypoints     = planner::shift_points_right( right_forward_points, 1.5 );
     double target_speed         = planner::is_point_to_right_of_line( *latest_vehicle_state, right_forward_points ) ? 0 : 2.0;
@@ -496,6 +537,9 @@ DecisionMaker::route_callback( const adore_ros2_msgs::msg::Route& msg )
     latest_route = std::nullopt;
   if( latest_local_map )
     latest_route->map = std::make_shared<map::Map>( latest_local_map.value() );
+  
+  RCLCPP_DEBUG( this->get_logger(), "Route received with %zu center lane points", 
+                latest_route ? latest_route->center_lane.size() : 0 );
 }
 
 void
@@ -506,13 +550,14 @@ DecisionMaker::traffic_signals_callback( const adore_ros2_msgs::msg::TrafficSign
   {
     stopping_points.emplace_back( signal.x, signal.y );
   }
+  RCLCPP_DEBUG( this->get_logger(), "Received %zu traffic signals", msg.signals.size() );
 }
 
 void
 DecisionMaker::vehicle_state_callback( const adore_ros2_msgs::msg::VehicleStateDynamic& msg )
 {
   latest_vehicle_state = dynamics::conversions::to_cpp_type( msg );
-  // remove nearby waypoints if nearby
+  
   while( !latest_waypoints.empty() && adore::math::distance_2d( latest_waypoints.front(), *latest_vehicle_state ) < 2.0 )
   {
     latest_waypoints.pop_front();
@@ -523,12 +568,14 @@ void
 DecisionMaker::local_map_callback( const adore_ros2_msgs::msg::Map& msg )
 {
   latest_local_map = map::conversions::to_cpp_type( msg );
+  RCLCPP_DEBUG( this->get_logger(), "Local map received" );
 }
 
 void
 DecisionMaker::safety_corridor_callback( const adore_ros2_msgs::msg::SafetyCorridor& msg )
 {
   latest_safety_corridor = msg;
+  RCLCPP_DEBUG( this->get_logger(), "Safety corridor received" );
 }
 
 void
@@ -536,28 +583,39 @@ DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::Traffi
 {
   if( !latest_vehicle_info )
   {
-    std::cerr << "Traffic participant callback is missing vehicle info" << std::endl;
+    RCLCPP_WARN_THROTTLE( this->get_logger(), *this->get_clock(), 1000, 
+                          "Traffic participant callback received data but vehicle info is not available yet" );
     return;
   }
 
-  auto new_participants_data = dynamics::conversions::to_cpp_type( msg );
-
-  // update any old information with new participants
-
-  for( const auto& [id, new_participant] : new_participants_data.participants )
+  try
   {
-    if( id == static_cast<int64_t>( latest_vehicle_info.value().v2x_station_id ) )
+    auto new_participants_data = dynamics::conversions::to_cpp_type( msg );
+    
+    int64_t ego_id = static_cast<int64_t>( latest_vehicle_info.value().v2x_station_id );
+    
+    for( const auto& [id, new_participant] : new_participants_data.participants )
     {
-      if( new_participant.trajectory.has_value() )
+      if( id == ego_id )
       {
-        latest_reference_trajectory = new_participant.trajectory.value();
+        if( new_participant.trajectory.has_value() )
+        {
+          latest_reference_trajectory = new_participant.trajectory.value();
+          RCLCPP_DEBUG( this->get_logger(), "Updated reference trajectory from ego participant" );
+        }
+        continue;
       }
-      continue;
+      traffic_participants.update_traffic_participants( new_participant );
     }
-    traffic_participants.update_traffic_participants( new_participant );
-  }
 
-  traffic_participants.remove_old_participants( 1.0, now().seconds() ); // @TODO, move this to a callback function?
+    traffic_participants.remove_old_participants( 1.0, now().seconds() );
+    
+    RCLCPP_DEBUG( this->get_logger(), "Processed %zu traffic participants", new_participants_data.participants.size() );
+  }
+  catch( const std::exception& e )
+  {
+    RCLCPP_ERROR( this->get_logger(), "Exception processing traffic participants: %s", e.what() );
+  }
 }
 
 void
@@ -582,6 +640,8 @@ DecisionMaker::vehicle_info_callback( const adore_ros2_msgs::msg::VehicleInfo& m
 {
   gps_fix_standard_deviation = msg.localization_error;
   latest_vehicle_info        = msg;
+  RCLCPP_DEBUG( this->get_logger(), "Vehicle info received: station_id=%u, localization_error=%.3f", 
+                msg.v2x_station_id, msg.localization_error );
 }
 
 void
@@ -595,7 +655,6 @@ DecisionMaker::waypoints_callback( const adore_ros2_msgs::msg::Waypoints& waypoi
                   []( const adore_ros2_msgs::msg::Point2d& pt ) { return adore::math::Point2d( pt.x, pt.y ); } );
 
   double target_speed = remote_operation_speed;
-  // use max speed from waypoints if present
   if( !waypoints_msg.speed_limits.empty() )
     target_speed = std::max( target_speed, *std::max_element( waypoints_msg.speed_limits.begin(), waypoints_msg.speed_limits.end() ) );
 
@@ -603,6 +662,8 @@ DecisionMaker::waypoints_callback( const adore_ros2_msgs::msg::Waypoints& waypoi
                                                                       command_limits, traffic_participants, model );
   publisher_trajectory_suggestion->publish( dynamics::conversions::to_ros_msg( trajectory ) );
   sent_suggestion = true;
+  
+  RCLCPP_INFO( this->get_logger(), "Remote operation waypoints received: %zu points", waypoints_msg.waypoints.size() );
 }
 
 void
@@ -613,6 +674,8 @@ DecisionMaker::suggested_trajectory_acceptance_callback( const std_msgs::msg::Bo
   need_assistance         = !msg.data;
   sent_suggestion         = false;
   sent_assistance_request = false;
+  
+  RCLCPP_INFO( this->get_logger(), "Trajectory suggestion %s", msg.data ? "accepted" : "rejected" );
 }
 
 void
@@ -620,81 +683,46 @@ DecisionMaker::goal_callback( const adore_ros2_msgs::msg::GoalPoint& msg )
 {
   goal.x = msg.x_position;
   goal.y = msg.y_position;
+  RCLCPP_INFO( this->get_logger(), "Goal received: (%.2f, %.2f)", goal.x, goal.y );
 }
 
 void
 DecisionMaker::print_init_info()
 {
-  std::cout << "DecisionMaker node initialized.\n";
-  std::cout << "Debug mode: " << ( debug_mode_active ? "Active" : "Inactive" ) << std::endl;
+  RCLCPP_INFO( this->get_logger(), "DecisionMaker node initialized" );
+  RCLCPP_INFO( this->get_logger(), "Debug mode: %s", debug_mode_active ? "Active" : "Inactive" );
 }
 
 void
 DecisionMaker::print_debug_info()
 {
   double current_time_seconds = now().seconds();
-  std::cerr << "------- Decision Maker Debug Information -------" << std::endl;
-  std::cerr << "Current Time: " << current_time_seconds << " seconds" << std::endl;
-  std::cerr << "GPS Fix Standard Deviation: " << gps_fix_standard_deviation << std::endl;
-
-  if( latest_reference_trajectory )
-    std::cerr << "Reference trajectory available \n";
-  else
-    std::cerr << "No reference trajectory available \n";
-
-  if( latest_route )
-    std::cerr << "Route available.\n";
-  else
-    std::cerr << "No route available.\n";
-  if( latest_local_map )
-    std::cerr << "Local map data available.\n";
-  else
-    std::cerr << "No local map data.\n";
-  if( latest_vehicle_state )
-    std::cerr << "Vehicle state available.\n";
-  else
-    std::cerr << "No vehicle state available.\n";
-  if( latest_safety_corridor )
-    std::cerr << "Safety Corridor message received.\n";
-  else
-    std::cerr << "No Safety Corridor message.\n";
-
-  std::cerr << "waypoints size - " << latest_waypoints.size() << std::endl;
-  std::cerr << "needs assistance " << need_assistance << std::endl;
+  RCLCPP_DEBUG( this->get_logger(), "=== Decision Maker Debug Information ===" );
+  RCLCPP_DEBUG( this->get_logger(), "Current Time: %.3f seconds", current_time_seconds );
+  RCLCPP_DEBUG( this->get_logger(), "GPS Fix Standard Deviation: %.3f", gps_fix_standard_deviation );
+  RCLCPP_DEBUG( this->get_logger(), "Reference trajectory: %s", latest_reference_trajectory ? "Available" : "Missing" );
+  RCLCPP_DEBUG( this->get_logger(), "Route: %s", latest_route ? "Available" : "Missing" );
+  RCLCPP_DEBUG( this->get_logger(), "Local map: %s", latest_local_map ? "Available" : "Missing" );
+  RCLCPP_DEBUG( this->get_logger(), "Vehicle state: %s", latest_vehicle_state ? "Available" : "Missing" );
+  RCLCPP_DEBUG( this->get_logger(), "Safety corridor: %s", latest_safety_corridor ? "Available" : "Missing" );
+  RCLCPP_DEBUG( this->get_logger(), "Vehicle info: %s", latest_vehicle_info ? "Available" : "Missing" );
+  RCLCPP_DEBUG( this->get_logger(), "Waypoints count: %zu", latest_waypoints.size() );
+  RCLCPP_DEBUG( this->get_logger(), "Needs assistance: %s", need_assistance ? "Yes" : "No" );
 
   std::string state_string;
   switch( state )
   {
-    case FOLLOW_REFERENCE:
-      state_string = "FOLLOW_REFERECE";
-      break;
-    case FOLLOW_ROUTE:
-      state_string = "FOLLOW_ROUTE";
-      break;
-    case SAFETY_CORRIDOR:
-      state_string = "SAFETY_CORRIDOR";
-      break;
-    case STANDSTILL:
-      state_string = "STANDSTILL";
-      break;
-    case EMERGENCY_STOP:
-      state_string = "EMERGENCY";
-      break;
-    case REMOTE_OPERATION:
-      state_string = "REMOTE OPERATIONS";
-      break;
-    case REQUESTING_ASSISTANCE:
-      state_string = "REQUESTING ASSISTANCE";
-      break;
-    default:
-      state_string = "UNKNOWN";
-      break;
+    case FOLLOW_REFERENCE: state_string = "FOLLOW_REFERENCE"; break;
+    case FOLLOW_ROUTE: state_string = "FOLLOW_ROUTE"; break;
+    case SAFETY_CORRIDOR: state_string = "SAFETY_CORRIDOR"; break;
+    case STANDSTILL: state_string = "STANDSTILL"; break;
+    case EMERGENCY_STOP: state_string = "EMERGENCY"; break;
+    case REMOTE_OPERATION: state_string = "REMOTE OPERATIONS"; break;
+    case REQUESTING_ASSISTANCE: state_string = "REQUESTING ASSISTANCE"; break;
+    default: state_string = "UNKNOWN"; break;
   }
-  std::cerr << "decision maker state - " << state_string << std::endl;
-
-  std::cerr << "------- ============================== -------" << std::endl;
+  RCLCPP_DEBUG( this->get_logger(), "Decision maker state: %s", state_string.c_str() );
 }
-
 
 } // namespace adore
 
