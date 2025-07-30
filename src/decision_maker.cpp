@@ -441,112 +441,63 @@ DecisionMaker::compute_trajectories_for_traffic_participant_set( dynamics::Traff
 }
 
 void
-DecisionMaker::compute_routes_for_traffic_participant_set( dynamics::TrafficParticipantSet& traffic_participant_set )
+DecisionMaker::compute_trajectories_for_traffic_participant_set( dynamics::TrafficParticipantSet& traffic_participant_set )
 {
-  for( auto& [id, participant] : traffic_participant_set.participants )
+  if( latest_local_map.has_value() )
   {
-    bool no_goal  = !participant.goal_point.has_value();
-    bool no_route = !participant.route.has_value();
-
-    if( !no_goal && no_route )
-    {
-      try
-      {
-        participant.route = map::Route( participant.state, participant.goal_point.value(), *latest_local_map );
-        if( participant.route->center_lane.empty() )
-        {
-          participant.route = std::nullopt;
-          RCLCPP_WARN( this->get_logger(), "No route found for traffic participant %ld", id );
-        }
-        else
-        {
-          RCLCPP_DEBUG( this->get_logger(), "Computed route for traffic participant %ld", id );
-        }
-      }
-      catch( const std::exception& e )
-      {
-        RCLCPP_ERROR( this->get_logger(), "Exception computing route for participant %ld: %s", id, e.what() );
-        participant.route = std::nullopt;
-      }
-    }
+    compute_routes_for_traffic_participant_set( traffic_participant_set );
   }
-}
-
-void
-DecisionMaker::follow_route()
-{
-  if( !latest_route || !latest_vehicle_state || !latest_local_map )
+  
+  if( !latest_vehicle_info.has_value() )
   {
-    RCLCPP_ERROR( this->get_logger(), "Missing required data for route following: route=%s, vehicle_state=%s, local_map=%s",
-                  latest_route ? "OK" : "MISSING",
-                  latest_vehicle_state ? "OK" : "MISSING", 
-                  latest_local_map ? "OK" : "MISSING" );
-    standstill();
+    RCLCPP_ERROR( this->get_logger(), "Cannot compute trajectories: vehicle info not available" );
+    return; // This early return is the problem!
+  }
+  
+  if( !latest_vehicle_state.has_value() )
+  {
+    RCLCPP_ERROR( this->get_logger(), "Cannot compute trajectories: vehicle state not available" );
     return;
   }
-
-  RCLCPP_DEBUG( this->get_logger(), "Starting route following with %zu traffic participants", traffic_participants.participants.size() );
-  
-  dynamics::Trajectory planned_trajectory;
-  double state_s = latest_route->get_s( latest_vehicle_state.value() );
-  auto cut_route = latest_route->get_shortened_route( state_s, 100.0 );
-  
-  for( auto& p : cut_route )
-  {
-    if( std::any_of( stopping_points.begin(), stopping_points.end(),
-                     [&]( const auto& s ) { return adore::math::distance_2d( s, p ) < 3.0; } ) )
-      p.max_speed = 0;
-  }
-  
-  double start_time = now().seconds();
   
   try
   {
-    dynamics::TrafficParticipantSet planning_participants = traffic_participants;
-    compute_trajectories_for_traffic_participant_set( planning_participants );
+    // CRITICAL: Always ensure ego vehicle is added to traffic participants
+    dynamics::TrafficParticipant ego_vehicle;
+    ego_vehicle.state = latest_vehicle_state.value();
+    ego_vehicle.goal_point = goal;
+    ego_vehicle.id = static_cast<int64_t>(latest_vehicle_info->v2x_station_id);
+    ego_vehicle.route = latest_route;
+    ego_vehicle.physical_parameters = model.params;
     
-    double prediction_time = now().seconds() - start_time;
-    RCLCPP_DEBUG( this->get_logger(), "Traffic prediction computation took %.6f seconds", prediction_time );
+    // Always add/update ego vehicle
+    traffic_participant_set.participants[ego_vehicle.id] = ego_vehicle;
     
-    if( planning_participants.participants.empty() )
-    {
-      RCLCPP_WARN( this->get_logger(), "No traffic participants available for trajectory planning" );
-    }
+    RCLCPP_DEBUG( this->get_logger(), "Added ego vehicle with ID %ld to traffic participant set (total: %zu participants)", 
+                  ego_vehicle.id, traffic_participant_set.participants.size() );
     
-    planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
-                                                                      planning_participants );
-  }
-  catch( const std::out_of_range& e )
-  {
-    RCLCPP_ERROR( this->get_logger(), "Map access error in trajectory planning - likely invalid participant ID: %s", e.what() );
-    
-    RCLCPP_ERROR( this->get_logger(), "Current traffic participant IDs:" );
-    for( const auto& [id, participant] : traffic_participants.participants )
-    {
-      RCLCPP_ERROR( this->get_logger(), "  ID: %ld", id );
-    }
-    
-    standstill();
-    return;
+    // Only run multi-agent planning if we have the ego vehicle
+    multi_agent_PID_planner.plan_trajectories( traffic_participant_set );
   }
   catch( const std::exception& e )
   {
-    RCLCPP_ERROR( this->get_logger(), "Exception in trajectory planning: %s", e.what() );
-    standstill();
-    return;
+    RCLCPP_ERROR( this->get_logger(), "Exception in multi-agent trajectory planning: %s", e.what() );
+    
+    // Even if multi-agent planning fails, ensure we have at least ego vehicle for trajectory planning
+    if( latest_vehicle_info.has_value() && latest_vehicle_state.has_value() )
+    {
+      traffic_participant_set.participants.clear();
+      dynamics::TrafficParticipant ego_vehicle;
+      ego_vehicle.state = latest_vehicle_state.value();
+      ego_vehicle.goal_point = goal;
+      ego_vehicle.id = static_cast<int64_t>(latest_vehicle_info->v2x_station_id);
+      ego_vehicle.route = latest_route;
+      ego_vehicle.physical_parameters = model.params;
+      traffic_participant_set.participants[ego_vehicle.id] = ego_vehicle;
+      
+      RCLCPP_WARN( this->get_logger(), "Multi-agent planning failed, using ego vehicle only" );
+    }
   }
-
-  if( planned_trajectory.states.size() < 2 )
-  {
-    RCLCPP_WARN( this->get_logger(), "Planned trajectory too short (%zu states), switching to standstill", planned_trajectory.states.size() );
-    standstill();
-    return;
-  }
-  
-  planned_trajectory.adjust_start_time( latest_vehicle_state->time );
-  planned_trajectory.label = "Follow Route";
-  publisher_trajectory->publish( dynamics::conversions::to_ros_msg( planned_trajectory ) );
-  publisher_traffic_participant_with_trajectory_prediction->publish( dynamics::conversions::to_ros_msg( traffic_participants ) );
 }
 
 void
@@ -557,6 +508,14 @@ DecisionMaker::minimum_risk_maneuver()
   if( !latest_route || !latest_vehicle_state || !latest_local_map )
   {
     RCLCPP_ERROR( this->get_logger(), "Missing data for minimum risk maneuver, falling back to standstill" );
+    standstill();
+    return;
+  }
+  
+  // CRITICAL FIX: Also check for vehicle info here
+  if( !latest_vehicle_info )
+  {
+    RCLCPP_ERROR( this->get_logger(), "Cannot execute minimum risk maneuver: vehicle info not available" );
     standstill();
     return;
   }
@@ -572,8 +531,12 @@ DecisionMaker::minimum_risk_maneuver()
       p.max_speed = 0;
     }
 
+    // Ensure we have ego vehicle in traffic participants
+    dynamics::TrafficParticipantSet planning_participants = traffic_participants;
+    compute_trajectories_for_traffic_participant_set( planning_participants );
+
     planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
-                                                                      traffic_participants );
+                                                                      planning_participants );
 
     if( planned_trajectory.states.size() < 2 )
     {
