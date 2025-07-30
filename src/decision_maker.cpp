@@ -78,7 +78,7 @@ DecisionMaker::create_subscribers()
                                                                                           std::placeholders::_1 ) );
 
   subscriber_traffic_signals = create_subscription<adore_ros2_msgs::msg::TrafficSignals>(
-    "traffic_signals", 1, std::bind( &DecisionMaker::traffic_signals_callback, this, std::placeholders::_1 ) );
+    "/global/traffic_signals", 1, std::bind( &DecisionMaker::traffic_signals_callback, this, std::placeholders::_1 ) );
 
   subscriber_suggested_trajectory_acceptance = create_subscription<std_msgs::msg::Bool>(
     "suggested_trajectory_accepted", 1,
@@ -117,13 +117,13 @@ DecisionMaker::load_parameters()
   declare_parameter( "optinlc_route_following", false );
   get_parameter( "optinlc_route_following", use_opti_nlc_route_following );
 
-  declare_parameter( "dt", 0.05 );
+  declare_parameter( "dt", 0.1 );
   get_parameter( "dt", dt );
 
   declare_parameter( "min_route_length", 4.0 );
   get_parameter( "min_route_length", min_route_length );
 
-  declare_parameter( "min_reference_trajectory_size", 5 );
+  declare_parameter( "min_reference_trajectory_size", 80 );
   get_parameter( "min_reference_trajectory_size", min_reference_trajectory_size );
 
   declare_parameter( "remote_operation_speed", 2.0 );
@@ -336,7 +336,6 @@ DecisionMaker::follow_reference()
   }
   else
   {
-    std::cerr << "reached reference trajectory" << std::endl;
     dynamics::TrafficParticipantSet ego_as_participant_set;
     dynamics::TrafficParticipant ego_vehicle;
     ego_vehicle.state = latest_vehicle_state.value();
@@ -416,12 +415,12 @@ DecisionMaker::compute_routes_for_traffic_participant_set( dynamics::TrafficPart
 
     if( has_goal && !has_route )
     {
-        participant.route = map::Route( participant.state, participant.goal_point.value(), *latest_local_map );
-        if( participant.route->center_lane.empty() )
-        {
-          participant.route = std::nullopt;
-          std::cerr << "No route found for traffic participant" << std::endl;
-        }
+      participant.route = map::Route( participant.state, participant.goal_point.value(), *latest_local_map );
+      if( participant.route->center_lane.empty() )
+      {
+        participant.route = std::nullopt;
+        std::cerr << "No route found for traffic participant" << std::endl;
+      }
     }
   }
 }
@@ -450,7 +449,7 @@ DecisionMaker::follow_route()
     standstill();
     return;
   }
-  planned_trajectory.adjust_start_time( latest_vehicle_state->time );
+  // planned_trajectory.adjust_start_time( latest_vehicle_state->time );
   planned_trajectory.label = "Follow Route";
   publisher_trajectory->publish( dynamics::conversions::to_ros_msg( planned_trajectory ) );
   publisher_traffic_participant_with_trajectory_prediction->publish( dynamics::conversions::to_ros_msg( traffic_participants ) );
@@ -514,15 +513,20 @@ DecisionMaker::latest_trajectory_valid()
 
   if( latest_reference_trajectory->states.size() < min_reference_trajectory_size )
   {
-    overview += "latest trajectory has too few states, ";
+    overview += "reaching end of validity area, switched back to follow route, ";
+    return false;
+  }
+
+  if( latest_vehicle_state->time - latest_reference_trajectory->states.front().time > 2 )
+  {
+    overview += "latest trajectory has wrong time, ";
+    latest_reference_trajectory = std::nullopt;
     return false;
   }
 
   if( latest_vehicle_state->time - latest_reference_trajectory->states.front().time > 0.5 )
-  // if( latest_vehicle_state->time - latest_reference_trajectory->states.front().time > 2 ) // Temporarily set high for testing
   {
     overview += "latest trajectory has wrong time, ";
-    latest_reference_trajectory = std::nullopt;
     return false;
   }
 
@@ -533,7 +537,17 @@ bool
 DecisionMaker::latest_route_valid()
 {
   if( !latest_route || !latest_vehicle_state )
+  {
+    overview += "no latest route, ";
     return false;
+  }
+
+  if( !latest_route.value().map )
+  {
+    overview += "route is missing map, ";
+    return false;
+  }
+
   double remaining_route_length = latest_route->get_length() - latest_route->get_s( *latest_vehicle_state );
   return remaining_route_length > min_route_length;
 }
@@ -755,6 +769,11 @@ DecisionMaker::debug_info(bool print)
   if( latest_route )
   {
     requirements_string += "Route available.\n";
+
+    if ( !latest_route.value().map )
+    {
+      overview += "Map problems in route, ";
+    }
   }
   else
   {
@@ -771,6 +790,7 @@ DecisionMaker::debug_info(bool print)
     requirements_string += "No Local map data available.\n";
     overview += "No Local map data available, ";
   }
+
 
   if( latest_vehicle_state )
   {
