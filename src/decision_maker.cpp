@@ -87,8 +87,10 @@ DecisionMaker::create_subscribers()
   subscriber_traffic_participant_set = create_subscription<adore_ros2_msgs::msg::TrafficParticipantSet>(
     "traffic_participants", 1, std::bind( &DecisionMaker::traffic_participants_callback, this, std::placeholders::_1 ) );
 
+  // subscriber_infrastructure_traffic_participants = create_subscription<adore_ros2_msgs::msg::TrafficParticipantSet>(
+  //   "/infrastructure/traffic_participants_with_trajectories", 1, std::bind( &DecisionMaker::infrastructure_traffic_participants_callback, this, std::placeholders::_1 ) );
   subscriber_infrastructure_traffic_participants = create_subscription<adore_ros2_msgs::msg::TrafficParticipantSet>(
-    "/infrastructure/traffic_participants_with_trajectories", 1, std::bind( &DecisionMaker::infrastructure_traffic_participants_callback, this, std::placeholders::_1 ) );
+    "infrastructure_traffic_participants", 1, std::bind( &DecisionMaker::infrastructure_traffic_participants_callback, this, std::placeholders::_1 ) );
 
   subscriber_user_input = create_subscription<std_msgs::msg::String>( "user_input", 1, std::bind( &DecisionMaker::user_input_callback, this, std::placeholders::_1 ) );
   main_timer = create_wall_timer( std::chrono::milliseconds( static_cast<size_t>( 1000 * dt ) ), std::bind( &DecisionMaker::run, this ) );
@@ -120,7 +122,7 @@ DecisionMaker::load_parameters()
   declare_parameter( "min_route_length", 4.0 );
   get_parameter( "min_route_length", min_route_length );
 
-  declare_parameter( "min_reference_trajectory_size", 80 );
+  declare_parameter( "min_reference_trajectory_size", 8 );
   get_parameter( "min_reference_trajectory_size", min_reference_trajectory_size );
 
   declare_parameter( "remote_operation_speed", 2.0 );
@@ -509,7 +511,7 @@ DecisionMaker::latest_trajectory_valid()
   if( !latest_vehicle_state || !latest_reference_trajectory )
     return false;
 
-  if( latest_reference_trajectory->states.size() < min_reference_trajectory_size )
+  if( latest_reference_trajectory->states.size() <= min_reference_trajectory_size )
   {
     overview += "reaching end of validity area, switched back to follow route, ";
     return false;
