@@ -48,5 +48,19 @@ struct Domain
     auto sub = node.create_subscription<MsgT>( topic_name, 1, std::forward<CallbackT>( callback ) );
     subscribers.emplace_back( sub );
   }
+
+  void read_topic_params( rclcpp::Node& node );
+
+  std::string state_topic                           = "vehicle_state_dynamic";
+  std::string route_topic                           = "route";
+  std::string safety_corridor_topic                 = "safety_corridor";
+  std::string suggested_trajectory_topic            = "suggested_trajectory";
+  std::string reference_trajectory_topic            = "reference_trajectory";
+  std::string sensor_participants_topic             = "traffic_participants";
+  std::string infrastructure_participants_topic     = "/planned_traffic";
+  std::string traffic_signals_topic                 = "traffic_signals";
+  std::string waypoints_topic                       = "remote_operation_waypoints";
+  std::string suggested_trajectory_acceptance_topic = "suggested_trajectory_accepted";
+  std::string caution_zones_topic                   = "caution_zones";
 };
 } // namespace adore

@@ -74,10 +74,19 @@ DecisionMaker::load_parameters()
 void
 DecisionPublisher::init( rclcpp::Node& node )
 {
-  trajectory_publisher            = node.create_publisher<TrajectoryAdapter>( "trajectory_decision", 1 );
-  trajectory_suggestion_publisher = node.create_publisher<TrajectoryAdapter>( "trajectory_suggestion", 1 );
-  assistance_publisher            = node.create_publisher<adore_ros2_msgs::msg::AssistanceRequest>( "assistance_request", 1 );
-  traffic_participant_publisher   = node.create_publisher<ParticipantAdapter>( "traffic_participant", 1 );
+  const std::string topic_trajectory_decision = node.declare_parameter<std::string>( "topic_trajectory_decision", "trajectory_decision" );
+
+  const std::string topic_trajectory_suggestion = node.declare_parameter<std::string>( "topic_trajectory_suggestion",
+                                                                                       "trajectory_suggestion" );
+
+  const std::string topic_assistance_request = node.declare_parameter<std::string>( "topic_assistance_request", "assistance_request" );
+
+  const std::string topic_traffic_participant = node.declare_parameter<std::string>( "topic_traffic_participant", "traffic_participant" );
+
+  trajectory_publisher            = node.create_publisher<TrajectoryAdapter>( topic_trajectory_decision, 1 );
+  trajectory_suggestion_publisher = node.create_publisher<TrajectoryAdapter>( topic_trajectory_suggestion, 1 );
+  assistance_publisher            = node.create_publisher<adore_ros2_msgs::msg::AssistanceRequest>( topic_assistance_request, 1 );
+  traffic_participant_publisher   = node.create_publisher<ParticipantAdapter>( topic_traffic_participant, 1 );
 }
 
 void
