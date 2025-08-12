@@ -4,7 +4,7 @@ namespace adore::conditions
 {
 
 bool
-state_ok( const Domain& d, const ConditionParams& p )
+state_ok( const Domain& d, const ConditionParams& )
 {
   return d.vehicle_state.has_value(); // TODO add covariance of estimate
 }
@@ -47,17 +47,9 @@ route_available( const Domain& d, const ConditionParams& p )
 bool
 need_assistance( const Domain& d, const ConditionParams& )
 {
-  // check caution zone if we are in need assistance polygon
-  bool in_caution_zone = false;
-  for( const auto& zone : d.caution_zones )
-  {
-    if( zone.second.point_inside( *d.vehicle_state ) )
-    {
-      in_caution_zone = true;
-      return true;
-    }
-  }
-  return false;
+  // check if in a caution zone
+  return std::any_of( d.caution_zones.begin(), d.caution_zones.end(),
+                      [&]( const auto& zone ) { return zone.second.point_inside( *d.vehicle_state ); } );
 }
 
 bool

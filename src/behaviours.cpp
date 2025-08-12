@@ -29,7 +29,7 @@ standstill( const Domain& domain, DecisionTools& )
 }
 
 Decision
-follow_reference( const Domain& domain, DecisionTools& tools )
+follow_reference( const Domain& domain, DecisionTools& )
 {
   Decision out;
   out.trajectory        = *domain.reference_trajectory;
