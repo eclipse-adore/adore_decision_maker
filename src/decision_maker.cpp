@@ -331,7 +331,9 @@ DecisionMaker::follow_reference()
   if( !default_use_reference_trajectory_as_is )
   {
     planner::OptiNLCTrajectoryOptimizer planner;
-    planned_trajectory = planner.plan_trajectory( *latest_reference_trajectory, *latest_vehicle_state );
+    auto latest_referece_trajectory_with_corrected_time = latest_reference_trajectory.value();
+    latest_referece_trajectory_with_corrected_time.adjust_start_time( latest_vehicle_state.value().time );
+    planned_trajectory = planner.plan_trajectory( latest_referece_trajectory_with_corrected_time, *latest_vehicle_state );
   }
   else
   {
@@ -353,6 +355,9 @@ DecisionMaker::follow_reference()
     // ego_as_participant_set );
     // publisher_traffic_participant_with_trajectory_prediction->publish( dynamics::conversions::to_ros_msg( ego_as_participant_set ) );
   }
+
+  // planned_trajectory = latest_reference_trajectory.value(); // @TODO REMOVE AGAIN!!
+
   planned_trajectory.adjust_start_time( latest_vehicle_state->time );
   planned_trajectory.label = "Follow Reference";
   publisher_trajectory->publish( dynamics::conversions::to_ros_msg( planned_trajectory ) );
@@ -508,25 +513,29 @@ DecisionMaker::safety_corridor()
 bool
 DecisionMaker::latest_trajectory_valid()
 {
+  // const double now_unix_s         = rclcpp::Clock{ RCL_SYSTEM_TIME }.now().seconds();
+
   if( !latest_vehicle_state || !latest_reference_trajectory )
     return false;
 
-  if( latest_reference_trajectory->states.size() <= min_reference_trajectory_size )
-  {
-    overview += "reaching end of validity area, switched back to follow route, ";
-    return false;
-  }
-
   if( latest_vehicle_state->time - latest_reference_trajectory->states.front().time > 2 )
+  // if( now_unix_s - latest_reference_trajectory->states.front().time > 2 )
   {
-    overview += "latest trajectory has wrong time, ";
+    overview += "latest trajectory has is too old, ";
     latest_reference_trajectory = std::nullopt;
     return false;
   }
 
   if( latest_vehicle_state->time - latest_reference_trajectory->states.front().time > 0.5 )
+  // if( now_unix_s - latest_reference_trajectory->states.front().time > 0.5 )
   {
     overview += "latest trajectory has wrong time, ";
+    return false;
+  }
+
+  if( latest_reference_trajectory->states.size() <= min_reference_trajectory_size )
+  {
+    overview += "reaching end of validity area, switched back to follow route, ";
     return false;
   }
 
@@ -627,6 +636,7 @@ DecisionMaker::infrastructure_traffic_participants_callback( const adore_ros2_ms
 
       if ( new_participants_data.validity_area.value().point_inside(vehicle_position))
       {
+          std::cerr << "Added latest reference trajectory with id: " << id << std::endl;
           latest_reference_trajectory = new_participant.trajectory.value();
           // std::cerr << "Time difference: " << latest_vehicle_state->time - latest_reference_trajectory->states.front().time << std::endl;
           continue;
