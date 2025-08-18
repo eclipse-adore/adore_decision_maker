@@ -358,7 +358,7 @@ DecisionMaker::follow_reference()
 
   // planned_trajectory = latest_reference_trajectory.value(); // @TODO REMOVE AGAIN!!
 
-  planned_trajectory.adjust_start_time( latest_vehicle_state->time );
+  // planned_trajectory.adjust_start_time( latest_vehicle_state->time );
   planned_trajectory.label = "Follow Reference";
   publisher_trajectory->publish( dynamics::conversions::to_ros_msg( planned_trajectory ) );
 
@@ -521,7 +521,7 @@ DecisionMaker::latest_trajectory_valid()
   if( latest_vehicle_state->time - latest_reference_trajectory->states.front().time > 2 )
   // if( now_unix_s - latest_reference_trajectory->states.front().time > 2 )
   {
-    overview += "latest trajectory has is too old, ";
+    overview += "latest trajectory is too old, ";
     latest_reference_trajectory = std::nullopt;
     return false;
   }
@@ -529,7 +529,7 @@ DecisionMaker::latest_trajectory_valid()
   if( latest_vehicle_state->time - latest_reference_trajectory->states.front().time > 0.5 )
   // if( now_unix_s - latest_reference_trajectory->states.front().time > 0.5 )
   {
-    overview += "latest trajectory has wrong time, ";
+    overview += "latest trajectory is too old, ";
     return false;
   }
 
