@@ -147,6 +147,16 @@ private:
   void compute_routes_for_traffic_participant_set( dynamics::TrafficParticipantSet& traffic_participant_set );
   void compute_trajectories_for_traffic_participant_set( dynamics::TrafficParticipantSet& traffic_participant_set );
 
+  // parameter related callbacks
+  rcl_interfaces::msg::SetParametersResult on_set_parameters_callback(const std::vector<rclcpp::Parameter> &parameters);
+  void on_parameters_changed(const rcl_interfaces::msg::ParameterEvent &event);
+
+  // allow having callbacks for newly set parameters:
+  OnSetParametersCallbackHandle::SharedPtr parameter_callback_handle; // on setting parameters
+  std::shared_ptr<rclcpp::ParameterEventHandler> parameter_event_handler; // after setting parameters
+  rclcpp::ParameterEventCallbackHandle::SharedPtr subscriber_parameter_event; // subscribe to parameter events
+ 
+
   // OTHER MEMBERS
   bool                           default_use_reference_trajectory_as_is = true;
   bool                           only_follow_reference_trajectories     = false;
@@ -181,6 +191,7 @@ private:
   void print_debug_info();
   void create_subscribers();
   void create_publishers();
+  void setup_parameter_handling();
   void load_parameters();
   void publish_traffic_participant();
 
