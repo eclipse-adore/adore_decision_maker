@@ -31,6 +31,7 @@ DecisionMaker::DecisionMaker( const rclcpp::NodeOptions& options ) :
   load_parameters();
   create_subscribers();
   create_publishers();
+  setup_parameter_handling();
   print_init_info();
 }
 
@@ -95,6 +96,23 @@ DecisionMaker::create_subscribers()
 
   subscriber_user_input = create_subscription<std_msgs::msg::String>( "user_input", 1, std::bind( &DecisionMaker::user_input_callback, this, std::placeholders::_1 ) );
   main_timer = create_wall_timer( std::chrono::milliseconds( static_cast<size_t>( 1000 * dt ) ), std::bind( &DecisionMaker::run, this ) );
+}
+
+void
+DecisionMaker::setup_parameter_handling()
+{
+  // callback for newly set parameters (before)
+  parameter_callback_handle = this->add_on_set_parameters_callback(
+    std::bind(&DecisionMaker::on_set_parameters_callback, this, std::placeholders::_1));
+  
+  // callback for newly set parameters (after)  
+  parameter_event_handler = std::make_shared<rclcpp::ParameterEventHandler>(this);
+  auto on_change_callback =
+    [this](const rcl_interfaces::msg::ParameterEvent &event) -> void
+    {
+      this->on_parameters_changed(event);
+    };
+  subscriber_parameter_event = parameter_event_handler->add_parameter_event_callback(on_change_callback);
 }
 
 void
@@ -889,6 +907,35 @@ void DecisionMaker::user_input_callback( const std_msgs::msg::String& msg )
   {
     turn_off_participants_untill = now().seconds() + turn_off_participants_duration;
   }
+}
+
+// this callback is called if parameters are newly set (before)
+rcl_interfaces::msg::SetParametersResult
+DecisionMaker::on_set_parameters_callback(
+    const std::vector<rclcpp::Parameter> &parameters)
+{
+  rcl_interfaces::msg::SetParametersResult result;
+  result.successful = true;
+
+  for (const auto &param : parameters)
+  {
+    RCLCPP_INFO(this->get_logger(),"Parameter '%s' changed to new value: %s",
+                param.get_name().c_str(),param.value_to_string().c_str());
+  }
+
+  return result;
+}
+
+// this callback is called if parameters are newly set (after)
+void
+DecisionMaker::on_parameters_changed(
+  const rcl_interfaces::msg::ParameterEvent &event)
+{
+  if (event.node != this->get_fully_qualified_name()) {
+    return; // change of parameters does not affect this node.
+  }
+  load_parameters(); // reload parameters as they might have changed
+  RCLCPP_INFO(this->get_logger(), "Parameters have been changed and therefore reloaded.");
 }
 
 } // namespace adore
