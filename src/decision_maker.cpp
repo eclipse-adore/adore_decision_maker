@@ -26,6 +26,7 @@ namespace adore
 DecisionMaker::DecisionMaker( const rclcpp::NodeOptions& options ) :
   Node( "decision_maker", options )
 {
+  declare_parameters();
   load_parameters();
   create_subscribers();
   create_publishers();
@@ -112,40 +113,24 @@ DecisionMaker::setup_parameter_handling()
 }
 
 void
-DecisionMaker::load_parameters()
+DecisionMaker::load_parameters(bool initial_call) // default: initial_call = true)
 {
-  std::string vehicle_model_file;
-  declare_parameter( "vehicle_model_file", "" );
-  get_parameter( "vehicle_model_file", vehicle_model_file );
-  model = dynamics::PhysicalVehicleModel( vehicle_model_file, false );
+  // NO parameter declaration in this function in order to allow to rerun it.
+  if(initial_call)
+  {
+    std::string vehicle_model_file;
+    get_parameter( "vehicle_model_file", vehicle_model_file );
+    model = dynamics::PhysicalVehicleModel( vehicle_model_file, false );
+  }
 
-  declare_parameter( "debug_mode_active", true );
   get_parameter( "debug_mode_active", debug_mode_active );
-
-  declare_parameter( "use_reference_trajectory_as_is", true );
   get_parameter( "use_reference_trajectory_as_is", default_use_reference_trajectory_as_is );
-
-  declare_parameter( "only_follow_reference_trajectories", false );
   get_parameter( "only_follow_reference_trajectories", only_follow_reference_trajectories );
-
-  declare_parameter( "optinlc_route_following", false );
   get_parameter( "optinlc_route_following", use_opti_nlc_route_following );
-
-  declare_parameter( "dt", 0.05 );
   get_parameter( "dt", dt );
-
-  declare_parameter( "min_route_length", 4.0 );
   get_parameter( "min_route_length", min_route_length );
-
-  declare_parameter( "min_reference_trajectory_size", 5 );
   get_parameter( "min_reference_trajectory_size", min_reference_trajectory_size );
-
-  declare_parameter( "remote_operation_speed", 2.0 );
   get_parameter( "remote_operation_speed", remote_operation_speed );
-
-  declare_parameter( "max_acceleration", 2.0 );
-  declare_parameter( "min_acceleration", -2.0 );
-  declare_parameter( "max_steering", 0.7 );
   get_parameter( "max_acceleration", command_limits.max_acceleration );
   get_parameter( "min_acceleration", command_limits.min_acceleration );
   get_parameter( "max_steering", command_limits.max_steering_angle );
@@ -157,13 +142,10 @@ DecisionMaker::load_parameters()
   // Planner related parameters
   std::vector<std::string> keys;
   std::vector<double>      values;
-  declare_parameter( "planner_settings_keys", keys );
-  declare_parameter( "planner_settings_values", values );
   get_parameter( "planner_settings_keys", keys );
   get_parameter( "planner_settings_values", values );
 
   std::vector<double> ra_polygon_values; // request assistance polygon
-  declare_parameter( "request_assistance_polygon", std::vector<double>{} );
   get_parameter( "request_assistance_polygon", ra_polygon_values );
 
   // Convert the parameter into a Polygon2d
@@ -195,6 +177,29 @@ DecisionMaker::load_parameters()
 
   opti_nlc_trajectory_planner.set_parameters( planner_settings );
   multi_agent_PID_planner.set_parameters( planner_settings );
+}
+
+void
+DecisionMaker::declare_parameters()
+{
+  declare_parameter( "vehicle_model_file", "" );
+  declare_parameter( "debug_mode_active", true );
+  declare_parameter( "use_reference_trajectory_as_is", true );
+  declare_parameter( "only_follow_reference_trajectories", false );
+  declare_parameter( "optinlc_route_following", false );
+  declare_parameter( "dt", 0.05 );
+  declare_parameter( "min_route_length", 4.0 );
+  declare_parameter( "min_reference_trajectory_size", 5 );
+  declare_parameter( "remote_operation_speed", 2.0 );
+  declare_parameter( "max_acceleration", 2.0 );
+  declare_parameter( "min_acceleration", -2.0 );
+  declare_parameter( "max_steering", 0.7 );
+  std::vector<std::string> keys;
+  std::vector<double>      values;
+  declare_parameter( "planner_settings_keys", keys );
+  declare_parameter( "planner_settings_values", values ); 
+  std::vector<double> ra_polygon_values; // request assistance polygon
+  declare_parameter( "request_assistance_polygon", std::vector<double>{} );
 }
 
 void
@@ -739,7 +744,7 @@ DecisionMaker::on_parameters_changed(
   if (event.node != this->get_fully_qualified_name()) {
     return; // change of parameters does not affect this node.
   }
-  load_parameters(); // reload parameters as they might have changed
+  load_parameters(false); // reload parameters as they might have changed
   RCLCPP_INFO(this->get_logger(), "Parameters have been changed and therefore reloaded.");
 }
 
