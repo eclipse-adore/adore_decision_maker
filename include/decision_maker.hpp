@@ -196,7 +196,8 @@ private:
   void create_subscribers();
   void create_publishers();
   void setup_parameter_handling();
-  void load_parameters();
+  void declare_parameters();
+  void load_parameters(bool initial_call = true);
   void publish_traffic_participant();
 
   math::Point2d goal;
