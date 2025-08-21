@@ -128,6 +128,12 @@ DecisionMaker::load_parameters()
   declare_parameter( "remote_operation_speed", 2.0 );
   get_parameter( "remote_operation_speed", remote_operation_speed );
 
+  declare_parameter( "allow_remote_trajectory_execution", allow_remote_trajectory_execution);
+  get_parameter( "allow_remote_trajectory_execution", allow_remote_trajectory_execution);
+
+  declare_parameter( "allow_remote_participant_detection", allow_remote_participant_detection);
+  get_parameter( "allow_remote_participant_detection", allow_remote_participant_detection);
+
   declare_parameter( "max_acceleration", 2.0 );
   declare_parameter( "min_acceleration", -2.0 );
   declare_parameter( "max_steering", 0.7 );
@@ -616,11 +622,21 @@ DecisionMaker::infrastructure_traffic_participants_callback( const adore_ros2_ms
     return;
   }
 
+  if ( !allow_remote_participant_detection )
+  {
+    return;
+  }
+
   auto new_participants_data = dynamics::conversions::to_cpp_type( msg );
   for( const auto& [id, new_participant] : new_participants_data.participants )
   {
     if( id == static_cast<int64_t>( latest_vehicle_info.value().v2x_station_id ))
     {
+      if ( !allow_remote_trajectory_execution )
+      {
+        continue;
+      }
+      
       if( !new_participant.trajectory.has_value() )
       {
         continue;
@@ -636,7 +652,7 @@ DecisionMaker::infrastructure_traffic_participants_callback( const adore_ros2_ms
 
       if ( new_participants_data.validity_area.value().point_inside(vehicle_position))
       {
-          std::cerr << "Added latest reference trajectory with id: " << id << std::endl;
+          // std::cerr << "Added latest reference trajectory with id: " << id << std::endl;
           latest_reference_trajectory = new_participant.trajectory.value();
           // std::cerr << "Time difference: " << latest_vehicle_state->time - latest_reference_trajectory->states.front().time << std::endl;
           continue;
@@ -757,6 +773,17 @@ void
 DecisionMaker::debug_info(bool print)
 {
   std::string requirements_string;
+
+  if ( !allow_remote_participant_detection )
+  {
+    overview += "Ignoring remotely detected participants, ";
+  }
+
+  if ( !allow_remote_trajectory_execution )
+  {
+    overview += "ignoring remote trajectories, ";
+  }
+  
   if( latest_reference_trajectory )
   {
     requirements_string += "Reference trajectory available \n";
@@ -889,6 +916,26 @@ void DecisionMaker::user_input_callback( const std_msgs::msg::String& msg )
   if ( msg.data == "turn off participants" )
   {
     turn_off_participants_untill = now().seconds() + turn_off_participants_duration;
+  }
+
+  if ( msg.data == "turn off remote trajectory driving")
+  {
+    allow_remote_trajectory_execution = false;
+  }
+
+  if ( msg.data == "turn on remote trajectory driving")
+  {
+    allow_remote_trajectory_execution = true;
+  }
+
+  if ( msg.data == "turn off remote participant detection")
+  {
+    allow_remote_participant_detection = false;
+  }
+
+  if ( msg.data == "turn on remote participant detection")
+  {
+    allow_remote_participant_detection = true;
   }
 }
 

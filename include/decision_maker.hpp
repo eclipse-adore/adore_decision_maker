@@ -159,6 +159,8 @@ private:
   dynamics::VehicleCommandLimits command_limits                         = { 0.7, -2.0, 2.0 };
   std::map<std::string, double>  planner_settings;
   size_t                         min_reference_trajectory_size = 5;
+  bool allow_remote_participant_detection = true;
+  bool allow_remote_trajectory_execution = true;
   std::string overview;
 
   // OptiNLC related members
