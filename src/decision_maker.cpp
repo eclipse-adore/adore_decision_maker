@@ -78,7 +78,7 @@ DecisionMaker::create_subscribers()
                                                                                           std::placeholders::_1 ) );
 
   subscriber_traffic_signals = create_subscription<adore_ros2_msgs::msg::TrafficSignals>(
-    "/global/traffic_signals", 1, std::bind( &DecisionMaker::traffic_signals_callback, this, std::placeholders::_1 ) );
+    "traffic_signals", 1, std::bind( &DecisionMaker::traffic_signals_callback, this, std::placeholders::_1 ) );
 
   subscriber_suggested_trajectory_acceptance = create_subscription<std_msgs::msg::Bool>(
     "suggested_trajectory_accepted", 1,
