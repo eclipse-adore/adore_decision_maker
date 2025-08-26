@@ -18,8 +18,10 @@
 
 #include "adore_ros2_msgs/msg/traffic_participant_set.hpp"
 #include "adore_ros2_msgs/msg/vehicle_info.hpp"
+#include <adore_dynamics_conversions.hpp>
 #include <adore_map/route.hpp>
 #include <adore_math/point.h>
+#include <dynamics/trajectory.hpp>
 #include <dynamics/vehicle_state.hpp>
 
 namespace adore
@@ -316,6 +318,17 @@ DecisionMaker::request_assistance()
   assistance_request.state             = dynamics::conversions::to_ros_msg( latest_vehicle_state.value() );
   assistance_request.header.stamp      = now();
 
+  if ( latest_trajectory_valid() )
+  {
+    publisher_trajectory_suggestion->publish( dynamics::conversions::to_ros_msg( latest_reference_trajectory.value() ) );
+
+    latest_waypoints.clear();
+    for ( const auto& state : latest_reference_trajectory.value().states )
+    {
+      latest_waypoints.push_back( math::Point2d( state.x, state.y ) ); 
+    }
+  }
+
   publisher_request_assistance_remote_operations->publish( assistance_request );
 
   sent_assistance_request = true;
@@ -477,8 +490,15 @@ DecisionMaker::minimum_risk_maneuver()
     p.max_speed = 0;
   }
 
-  planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
-                                                                    traffic_participants );
+  if ( latest_trajectory_mrm_valid() )
+  {
+    planned_trajectory = latest_reference_trajectory_mrm.value();
+  }
+  else
+  {
+    planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
+                                                                      traffic_participants );
+  }
 
 
   if( planned_trajectory.states.size() < 2 )
@@ -542,6 +562,28 @@ DecisionMaker::latest_trajectory_valid()
   if( latest_reference_trajectory->states.size() <= min_reference_trajectory_size )
   {
     overview += "reaching end of validity area, switched back to follow route, ";
+    return false;
+  }
+
+  return true;
+}
+
+bool
+DecisionMaker::latest_trajectory_mrm_valid()
+{
+  if( !latest_vehicle_state || !latest_reference_trajectory_mrm )
+    return false;
+
+  if( latest_vehicle_state->time - latest_reference_trajectory_mrm->states.front().time > 0.5 )
+  {
+    overview += "latest minimum risk trajectory is too old, ";
+    latest_reference_trajectory = std::nullopt;
+    return false;
+  }
+
+  if( latest_reference_trajectory_mrm->states.size() <= min_reference_trajectory_size )
+  {
+    overview += "reaching end of validity area, cannot use latest trajectory mrm, ";
     return false;
   }
 
@@ -645,6 +687,7 @@ DecisionMaker::infrastructure_traffic_participants_callback( const adore_ros2_ms
       if ( !new_participants_data.validity_area.has_value() )
       {
         latest_reference_trajectory = new_participant.trajectory.value();
+        latest_reference_trajectory_mrm = new_participant.mrm_trajectory.value();
         continue;
       }
 

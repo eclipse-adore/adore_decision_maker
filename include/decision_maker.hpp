@@ -100,7 +100,6 @@ private:
   rclcpp::Publisher<adore_ros2_msgs::msg::TrafficParticipant>::SharedPtr publisher_traffic_participant;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_overview;
 
-
   // SUBSCRIBERS
   rclcpp::Subscription<adore_ros2_msgs::msg::Route>::SharedPtr                 subscriber_route;
   rclcpp::Subscription<adore_ros2_msgs::msg::GoalPoint>::SharedPtr             subscriber_goal;
@@ -117,6 +116,7 @@ private:
 
   // LATEST RECEIVED DATA
   std::optional<dynamics::Trajectory>                 latest_reference_trajectory = std::nullopt;
+  std::optional<dynamics::Trajectory>                 latest_reference_trajectory_mrm = std::nullopt;
   std::optional<map::Route>                           latest_route                = std::nullopt;
   std::optional<map::Map>                             latest_local_map            = std::nullopt;
   std::optional<dynamics::VehicleStateDynamic>        latest_vehicle_state        = std::nullopt;
@@ -129,6 +129,7 @@ private:
   std::optional<double> turn_off_participants_untill = std::nullopt;
 
   bool latest_trajectory_valid();
+  bool latest_trajectory_mrm_valid();
   bool latest_route_valid();
 
 
