@@ -16,10 +16,12 @@
 
 #include "decision_maker.hpp"
 
+#include "adore_ros2_msgs/msg/caution_zone.hpp"
 #include "adore_ros2_msgs/msg/traffic_participant_set.hpp"
 #include "adore_ros2_msgs/msg/vehicle_info.hpp"
 #include <adore_dynamics_conversions.hpp>
 #include <adore_map/route.hpp>
+#include <adore_map_conversions.hpp>
 #include <adore_math/point.h>
 #include <dynamics/trajectory.hpp>
 #include <dynamics/vehicle_state.hpp>
@@ -70,6 +72,9 @@ DecisionMaker::create_subscribers()
 
   subscriber_safety_corridor = create_subscription<adore_ros2_msgs::msg::SafetyCorridor>(
     "safety_corridor", 1, std::bind( &DecisionMaker::safety_corridor_callback, this, std::placeholders::_1 ) );
+
+  subscriber_caution_zone = create_subscription<adore_ros2_msgs::msg::CautionZone>(
+    "caution_zones", 1, std::bind( &DecisionMaker::caution_zone_callback, this, std::placeholders::_1 ) );
 
   subscriber_vehicle_info = create_subscription<adore_ros2_msgs::msg::VehicleInfo>( "vehicle_info", 1,
                                                                                     std::bind( &DecisionMaker::vehicle_info_callback, this,
@@ -272,11 +277,13 @@ DecisionMaker::check_caution_zones()
 {
   if( !latest_vehicle_state )
     return;
+
   for( const auto& [label, polygon] : caution_zones )
   {
     if( label == "Request Assistance" && polygon.point_inside( latest_vehicle_state.value() ) && state != REMOTE_OPERATION
         && state != REQUESTING_ASSISTANCE )
       need_assistance = true;
+
     adore_ros2_msgs::msg::CautionZone caution_zone_msg;
     caution_zone_msg.label           = label;
     caution_zone_msg.polygon         = math::conversions::to_ros_msg( polygon );
@@ -490,6 +497,7 @@ DecisionMaker::minimum_risk_maneuver()
     p.max_speed = 0;
   }
 
+
   if ( latest_trajectory_mrm_valid() )
   {
     planned_trajectory = latest_reference_trajectory_mrm.value();
@@ -498,6 +506,8 @@ DecisionMaker::minimum_risk_maneuver()
   {
     planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
                                                                       traffic_participants );
+    // planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
+    //                                                                   traffic_participants );
   }
 
 
@@ -544,18 +554,19 @@ DecisionMaker::latest_trajectory_valid()
   if( !latest_vehicle_state || !latest_reference_trajectory )
     return false;
 
-  if( latest_vehicle_state->time - latest_reference_trajectory->states.front().time > 2 )
-  // if( now_unix_s - latest_reference_trajectory->states.front().time > 2 )
-  {
-    overview += "latest trajectory is too old, ";
-    latest_reference_trajectory = std::nullopt;
-    return false;
-  }
+  // if( latest_vehicle_state->time - latest_reference_trajectory->states.front().time > 2 )
+  // // if( now_unix_s - latest_reference_trajectory->states.front().time > 2 )
+  // {
+  //   overview += "latest trajectory is too old, ";
+  //   latest_reference_trajectory = std::nullopt;
+  //   return false;
+  // }
 
   if( latest_vehicle_state->time - latest_reference_trajectory->states.front().time > 0.5 )
   // if( now_unix_s - latest_reference_trajectory->states.front().time > 0.5 )
   {
     overview += "latest trajectory is too old, ";
+    latest_reference_trajectory = std::nullopt;
     return false;
   }
 
@@ -583,7 +594,7 @@ DecisionMaker::latest_trajectory_mrm_valid()
 
   if( latest_reference_trajectory_mrm->states.size() <= min_reference_trajectory_size )
   {
-    overview += "reaching end of validity area, cannot use latest trajectory mrm, ";
+    overview += "cannot use reference trajectory mrm, too close to validity area border, ";
     return false;
   }
 
@@ -954,8 +965,30 @@ DecisionMaker::debug_info(bool print)
   std::cerr << "------- ============================== -------" << std::endl;
 }
 
+void DecisionMaker::caution_zone_callback( const adore_ros2_msgs::msg::CautionZone& msg)
+{
+  if ( msg.polygon.points.size() < 3 )
+    return;
+
+  adore::math::Polygon2d polygon;
+  polygon.points.reserve( msg.polygon.points.size() );
+
+  for( const auto& point : msg.polygon.points )
+  {
+    polygon.points.push_back( { point.x, point.y } );
+  }
+  
+  caution_zones["Request Assistance"] = polygon;
+}
+
 void DecisionMaker::user_input_callback( const std_msgs::msg::String& msg )
 {
+  if ( msg.data == "clear caution zones")
+  {
+    caution_zones.clear();
+    std::cerr << "Caution zone size: " << caution_zones.size() << std::endl;
+  }
+  
   if ( msg.data == "turn off participants" )
   {
     turn_off_participants_untill = now().seconds() + turn_off_participants_duration;

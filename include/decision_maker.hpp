@@ -110,6 +110,7 @@ private:
   rclcpp::Subscription<adore_ros2_msgs::msg::Waypoints>::SharedPtr             subscriber_waypoints;
   rclcpp::Subscription<adore_ros2_msgs::msg::TrafficSignals>::SharedPtr        subscriber_traffic_signals;
   rclcpp::Subscription<adore_ros2_msgs::msg::SafetyCorridor>::SharedPtr        subscriber_safety_corridor;
+  rclcpp::Subscription<adore_ros2_msgs::msg::CautionZone>::SharedPtr        subscriber_caution_zone;
   rclcpp::Subscription<adore_ros2_msgs::msg::TrafficParticipantSet>::SharedPtr subscriber_traffic_participant_set;
   rclcpp::Subscription<adore_ros2_msgs::msg::TrafficParticipantSet>::SharedPtr subscriber_infrastructure_traffic_participants;
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr subscriber_user_input;
@@ -139,6 +140,7 @@ private:
   void vehicle_state_callback( const adore_ros2_msgs::msg::VehicleStateDynamic& msg );
   void local_map_callback( const adore_ros2_msgs::msg::Map& msg );
   void safety_corridor_callback( const adore_ros2_msgs::msg::SafetyCorridor& msg );
+  void caution_zone_callback( const adore_ros2_msgs::msg::CautionZone& msg );
   void vehicle_info_callback( const adore_ros2_msgs::msg::VehicleInfo& msg );
   void waypoints_callback( const adore_ros2_msgs::msg::Waypoints& waypoints );
   void suggested_trajectory_acceptance_callback( const std_msgs::msg::Bool& msg );
