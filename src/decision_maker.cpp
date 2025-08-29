@@ -468,6 +468,7 @@ DecisionMaker::follow_route()
       p.second.max_speed = 0;
   }
   double start_time = now().seconds();
+  multi_agent_PID_planner.max_allowed_speed = 13.5;
   compute_trajectories_for_traffic_participant_set( traffic_participants );
   std::cerr << "time taken for prediction: " << now().seconds() - start_time << std::setprecision(14) << std::endl;
   opti_nlc_trajectory_planner.speed_profile.vehicle_params = model.params;
@@ -504,6 +505,8 @@ DecisionMaker::minimum_risk_maneuver()
   }
   else
   {
+    multi_agent_PID_planner.max_allowed_speed = 0.0;
+    compute_trajectories_for_traffic_participant_set( traffic_participants );
     planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
                                                                       traffic_participants );
     // planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
@@ -707,6 +710,7 @@ DecisionMaker::infrastructure_traffic_participants_callback( const adore_ros2_ms
       if ( new_participants_data.validity_area.value().point_inside(vehicle_position))
       {
           // std::cerr << "Added latest reference trajectory with id: " << id << std::endl;
+          latest_reference_trajectory_mrm = new_participant.mrm_trajectory.value();
           latest_reference_trajectory = new_participant.trajectory.value();
           // std::cerr << "Time difference: " << latest_vehicle_state->time - latest_reference_trajectory->states.front().time << std::endl;
           continue;
