@@ -158,6 +158,7 @@ private:
   double                         min_route_length                       = 4.0;
   double                         dt                                     = 0.1;
   double                         remote_operation_speed                 = 2.0;
+  double                         max_speed                              = 7.0;
   int                            ego_id                                 = 777; // can be changed to a standard value
   dynamics::VehicleCommandLimits command_limits                         = { 0.7, -2.0, 2.0 };
   std::map<std::string, double>  planner_settings;

@@ -144,6 +144,8 @@ DecisionMaker::load_parameters()
   declare_parameter( "max_acceleration", 2.0 );
   declare_parameter( "min_acceleration", -2.0 );
   declare_parameter( "max_steering", 0.7 );
+  declare_parameter( "max_speed", 7.0 );
+  get_parameter( "max_speed", max_speed );
   get_parameter( "max_acceleration", command_limits.max_acceleration );
   get_parameter( "min_acceleration", command_limits.min_acceleration );
   get_parameter( "max_steering", command_limits.max_steering_angle );
@@ -315,25 +317,42 @@ DecisionMaker::standstill()
 void
 DecisionMaker::request_assistance()
 {
-  if( latest_local_map && latest_route && latest_vehicle_state->vx > 0.5 )
+  if( latest_local_map && latest_route )
     minimum_risk_maneuver();
-  else
-    standstill();
 
   adore_ros2_msgs::msg::AssistanceRequest assistance_request;
   assistance_request.assistance_needed = true;
   assistance_request.state             = dynamics::conversions::to_ros_msg( latest_vehicle_state.value() );
   assistance_request.header.stamp      = now();
-
-  if ( latest_trajectory_valid() )
+  
+  if( sent_suggestion == false && latest_vehicle_state->vx < 0.5)
   {
-    publisher_trajectory_suggestion->publish( dynamics::conversions::to_ros_msg( latest_reference_trajectory.value() ) );
-
-    latest_waypoints.clear();
-    for ( const auto& state : latest_reference_trajectory.value().states )
+    if ( latest_trajectory_valid() )
     {
-      latest_waypoints.push_back( math::Point2d( state.x, state.y ) ); 
+      publisher_trajectory_suggestion->publish( dynamics::conversions::to_ros_msg( latest_reference_trajectory.value() ) );
+      sent_suggestion = true;
+      latest_waypoints.clear();
+      for ( const auto& state : latest_reference_trajectory.value().states )
+      {
+        latest_waypoints.push_back( math::Point2d( state.x, state.y ) ); 
+      }
     }
+    else
+    {
+      dynamics::Trajectory planned_trajectory;
+      multi_agent_PID_planner.max_allowed_speed = max_speed;
+      compute_trajectories_for_traffic_participant_set( traffic_participants );
+      planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
+                                                                        traffic_participants );
+      sent_suggestion = true;
+      publisher_trajectory_suggestion->publish( dynamics::conversions::to_ros_msg( planned_trajectory ) );
+      latest_waypoints.clear();
+      for ( const auto& state : planned_trajectory.states )
+      {
+        latest_waypoints.push_back( math::Point2d( state.x, state.y ) ); 
+      }
+    }
+      
   }
 
   publisher_request_assistance_remote_operations->publish( assistance_request );
@@ -468,10 +487,9 @@ DecisionMaker::follow_route()
       p.second.max_speed = 0;
   }
   double start_time = now().seconds();
-  multi_agent_PID_planner.max_allowed_speed = 13.5;
+  multi_agent_PID_planner.max_allowed_speed = max_speed;
   compute_trajectories_for_traffic_participant_set( traffic_participants );
   std::cerr << "time taken for prediction: " << now().seconds() - start_time << std::setprecision(14) << std::endl;
-  opti_nlc_trajectory_planner.speed_profile.vehicle_params = model.params;
   planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
                                                                     traffic_participants );
 
