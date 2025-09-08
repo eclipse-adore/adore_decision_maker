@@ -583,10 +583,13 @@ DecisionMaker::latest_trajectory_valid()
   //   return false;
   // }
 
-  if( latest_vehicle_state->time - latest_reference_trajectory->states.front().time > 0.5 )
+  double time_difference = latest_vehicle_state->time - latest_reference_trajectory->states.front().time;
+  overview += std::to_string(time_difference) + " delay, ";
+
+  if( time_difference > 0.5 )
   // if( now_unix_s - latest_reference_trajectory->states.front().time > 0.5 )
   {
-    overview += "latest trajectory is too old, ";
+    overview += "latest trajectory is too old";
     latest_reference_trajectory = std::nullopt;
     return false;
   }
