@@ -123,6 +123,9 @@ DecisionMaker::load_parameters()
   declare_parameter( "optinlc_route_following", false );
   get_parameter( "optinlc_route_following", use_opti_nlc_route_following );
 
+  declare_parameter( "only_suggestion", false );
+  get_parameter( "only_suggestion", only_suggestion );
+
   declare_parameter( "dt", 0.1 );
   get_parameter( "dt", dt );
 
@@ -325,7 +328,7 @@ DecisionMaker::request_assistance()
   assistance_request.state             = dynamics::conversions::to_ros_msg( latest_vehicle_state.value() );
   assistance_request.header.stamp      = now();
   
-  if( sent_suggestion == false && latest_vehicle_state->vx < 0.5)
+  if( sent_suggestion == false && latest_vehicle_state->vx < 0.5 && only_suggestion == true )
   {
     if ( latest_trajectory_valid() )
     {
@@ -815,8 +818,8 @@ DecisionMaker::waypoints_callback( const adore_ros2_msgs::msg::Waypoints& waypoi
 
   double target_speed = remote_operation_speed;
   // use max speed from waypoints if present
-  if( !waypoints_msg.speed_limits.empty() )
-    target_speed = std::max( target_speed, *std::max_element( waypoints_msg.speed_limits.begin(), waypoints_msg.speed_limits.end() ) );
+  // if( !waypoints_msg.speed_limits.empty() )
+  //   target_speed = std::max( target_speed, *std::max_element( waypoints_msg.speed_limits.begin(), waypoints_msg.speed_limits.end() ) );
 
   dynamics::Trajectory trajectory = planner::waypoints_to_trajectory( *latest_vehicle_state, latest_waypoints, dt, remote_operation_speed,
                                                                       command_limits, traffic_participants, model );

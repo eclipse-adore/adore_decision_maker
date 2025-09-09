@@ -165,6 +165,7 @@ private:
   size_t                         min_reference_trajectory_size = 5;
   bool allow_remote_participant_detection = true;
   bool allow_remote_trajectory_execution = true;
+  bool only_suggestion = false;
   std::string overview;
 
   // OptiNLC related members
