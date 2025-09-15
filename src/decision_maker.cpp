@@ -437,19 +437,25 @@ DecisionMaker::compute_trajectories_for_traffic_participant_set( dynamics::Traff
   ego_vehicle.route = latest_route;
   ego_vehicle.physical_parameters = model.params;
   traffic_participant_set.participants[ego_vehicle.id] = ego_vehicle;
-  int status_from_planner = multi_agent_PID_planner.plan_trajectories( traffic_participant_set );
-  if ( status_from_planner == 1 )
+  auto status_from_planner = multi_agent_PID_planner.plan_trajectories( traffic_participant_set );
+  if ( status_from_planner.overview_state == 1 )
   {
     overview += "stopping for object, ";
+
+    if ( status_from_planner.overview_obstacle_distance < 1000.0)
+    {
+      overview += "distance to obstacle: " + std::to_string(status_from_planner.overview_obstacle_distance) + ", ";
+    }
   }
-  if ( status_from_planner == 2 )
+  if ( status_from_planner.overview_state == 2 )
   {
     overview += "stopping at goal, ";
   }
-  if ( status_from_planner == 3 )
+  if ( status_from_planner.overview_state == 3 )
   {
     overview += "stopping at traffic light, ";
   }
+
 }
 
 void
@@ -471,7 +477,7 @@ DecisionMaker::compute_routes_for_traffic_participant_set( dynamics::TrafficPart
       if( participant.route->center_lane.empty() )
       {
         participant.route = std::nullopt;
-        std::cerr << "No route found for traffic participant" << std::endl;
+        //std::cerr << "No route found for traffic participant" << std::endl;
       }
     }
   }
@@ -589,7 +595,8 @@ DecisionMaker::latest_trajectory_valid()
   double time_difference = latest_vehicle_state->time - latest_reference_trajectory->states.front().time;
   overview += std::to_string(time_difference) + " delay, ";
 
-  if( time_difference > 0.5 )
+  // if( time_difference > 0.5 )
+  if( time_difference > 1.0 )
   // if( now_unix_s - latest_reference_trajectory->states.front().time > 0.5 )
   {
     overview += "latest trajectory is too old";
@@ -779,7 +786,7 @@ DecisionMaker::traffic_participants_callback( const adore_ros2_msgs::msg::Traffi
     traffic_participants.update_traffic_participants( new_participant );
   }
 
-  traffic_participants.remove_old_participants( 1.0, now().seconds() ); // @TODO, move this to a callback function?
+  traffic_participants.remove_old_participants( 1.5, now().seconds() ); // @TODO, move this to a callback function?
 }
 
 void
