@@ -18,7 +18,9 @@ DecisionMaker::DecisionMaker( const rclcpp::NodeOptions& opts ) :
 void
 DecisionMaker::run()
 {
-  auto        cond_mask        = conditions::evaluate_conditions( domain, params );
+  auto cond_mask = conditions::evaluate_conditions( domain, params );
+  if( debug )
+    print_condition_mask( cond_mask );
   const auto& behaviour        = adore::choose_behaviour( cond_mask );
   Decision    decision         = behaviour.fn( domain, tools );
   decision.traffic_participant = make_participant();
@@ -33,10 +35,14 @@ DecisionMaker::make_participant()
     participant.state = domain.vehicle_state.value();
   if( domain.route )
   {
-    participant.route      = domain.route.value();
-    participant.goal_point = domain.route.value().destination;
+    // participant.goal_point = domain.route->destination;
+    // participant.route      = domain.route.value();
+    double state_s         = domain.route->get_s( participant.state );
+    auto   local_goal      = domain.route->get_pose_at_s( std::min( 100.0 + state_s, domain.route->get_length() ) );
+    participant.goal_point = math::Point2d( local_goal.x, local_goal.y );
   }
   participant.id                  = domain.v2x_id;
+  participant.v2x_id              = domain.v2x_id;
   participant.classification      = dynamics::CAR;
   participant.physical_parameters = tools.vehicle_model->params;
   return participant;
@@ -49,7 +55,6 @@ DecisionMaker::load_parameters()
   params.min_ref_traj_size = declare_parameter( "min_ref_traj_size", 5 );
   params.max_ref_traj_age  = declare_parameter( "max_ref_traj_age", 0.5 );
   params.min_route_length  = declare_parameter( "min_route_length", 4.0 );
-  domain.v2x_id            = declare_parameter( "v2x_id", 0 );
 
   std::vector<std::string> keys   = declare_parameter( "planner_settings_keys", std::vector<std::string>() );
   std::vector<double>      values = declare_parameter( "planner_settings_values", std::vector<double>() );

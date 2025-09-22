@@ -24,7 +24,7 @@ waypoints_available( const Domain& d, const ConditionParams& )
 bool
 reference_traj_valid( const Domain& d, const ConditionParams& p )
 {
-  if( !d.reference_trajectory || !d.vehicle_state )
+  if( !d.reference_trajectory )
     return false;
 
   if( d.reference_trajectory->states.size() < p.min_ref_traj_size )

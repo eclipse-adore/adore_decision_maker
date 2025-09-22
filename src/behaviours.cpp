@@ -8,6 +8,7 @@ namespace adore::behaviours
 Decision
 emergency_stop( const Domain& domain, DecisionTools& )
 {
+
   Decision             out;
   dynamics::Trajectory emergency_stop_trajectory;
   if( domain.vehicle_state )
@@ -20,11 +21,13 @@ emergency_stop( const Domain& domain, DecisionTools& )
 Decision
 standstill( const Domain& domain, DecisionTools& )
 {
+
   Decision             out;
   dynamics::Trajectory standstill_trajectory;
   standstill_trajectory.label = "Standstill";
   if( domain.vehicle_state )
     standstill_trajectory.states.push_back( domain.vehicle_state.value() );
+  out.trajectory = std::move( standstill_trajectory );
   return out;
 }
 
@@ -42,8 +45,7 @@ Decision
 follow_route( const Domain& domain, DecisionTools& tools )
 {
   Decision out;
-
-  auto route_with_signal = domain.route.value();
+  auto     route_with_signal = domain.route.value();
   for( auto& p : route_with_signal.center_lane )
   {
     if( std::any_of( domain.traffic_signals.begin(), domain.traffic_signals.end(), [&]( const auto& s ) {
@@ -51,16 +53,23 @@ follow_route( const Domain& domain, DecisionTools& tools )
     } ) )
       p.second.max_speed = 0;
   }
+  // check for vehcile state
 
-  auto traj      = tools.planner.plan_route_trajectory( route_with_signal, *domain.vehicle_state, domain.traffic_participants );
+
+  auto traj = tools.planner.plan_route_trajectory( route_with_signal, *domain.vehicle_state, domain.traffic_participants );
+
+
   traj.label     = "Follow Route";
   out.trajectory = std::move( traj );
+
+
   return out;
 }
 
 Decision
 waiting_for_assistance( const Domain& domain, DecisionTools& tools )
 {
+
   // if we have no waypoints, do nothing
   Decision out                 = minimum_risk( domain, tools );
   out.trajectory->label        = "Waiting for Waypoints";
@@ -99,6 +108,7 @@ follow_assistance( const Domain& domain, DecisionTools& tools )
 Decision
 safety_corridor( const Domain& domain, DecisionTools& tools )
 {
+
   Decision out; // calculate trajectory getting out of safety corridor
   auto     right_forward_points = planner::filter_points_in_front( domain.safety_corridor->right_border, *domain.vehicle_state );
   auto     safety_waypoints     = planner::shift_points_right( right_forward_points, tools.vehicle_model->params.body_width );
@@ -118,15 +128,18 @@ safety_corridor( const Domain& domain, DecisionTools& tools )
 Decision
 request_assistance( const Domain& domain, DecisionTools& tools )
 {
+
   Decision out                 = minimum_risk( domain, tools );
   out.request_assistance       = true;
   out.reset_assistance_request = false;
+  out.trajectory->label        = "Request Assistance";
   return out;
 }
 
 Decision
 minimum_risk( const Domain& domain, DecisionTools& tools )
 {
+
   Decision out;
 
   double state_s            = domain.route->get_s( *domain.vehicle_state );

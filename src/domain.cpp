@@ -22,7 +22,6 @@ Domain::setup( rclcpp::Node& n )
           traffic_participants.update_traffic_participants( participant );
         if( participant.trajectory && participant.id == v2x_id )
           reference_trajectory = participant.trajectory;
-
         traffic_participants.remove_old_participants( max_participant_age, n.now().seconds() );
       }
     } );
@@ -57,17 +56,18 @@ Domain::setup( rclcpp::Node& n )
 void
 Domain::read_topic_params( rclcpp::Node& node )
 {
-  node.get_parameter_or( "topic_state", state_topic, state_topic );
-  node.get_parameter_or( "topic_route", route_topic, route_topic );
-  node.get_parameter_or( "topic_safety_corridor", safety_corridor_topic, safety_corridor_topic );
-  node.get_parameter_or( "topic_suggested_trajectory", suggested_trajectory_topic, suggested_trajectory_topic );
-  node.get_parameter_or( "topic_reference_trajectory", reference_trajectory_topic, reference_trajectory_topic );
-  node.get_parameter_or( "topic_sensor_participants", sensor_participants_topic, sensor_participants_topic );
-  node.get_parameter_or( "topic_infrastructure_participants", infrastructure_participants_topic, infrastructure_participants_topic );
-  node.get_parameter_or( "topic_traffic_signals", traffic_signals_topic, traffic_signals_topic );
-  node.get_parameter_or( "topic_waypoints", waypoints_topic, waypoints_topic );
-  node.get_parameter_or( "topic_suggested_trajectory_acceptance", suggested_trajectory_acceptance_topic,
-                         suggested_trajectory_acceptance_topic );
-  node.get_parameter_or( "topic_caution_zones", caution_zones_topic, caution_zones_topic );
+  state_topic                           = node.declare_parameter( "topic_state", state_topic );
+  route_topic                           = node.declare_parameter( "topic_route", route_topic );
+  safety_corridor_topic                 = node.declare_parameter( "topic_safety_corridor", safety_corridor_topic );
+  suggested_trajectory_topic            = node.declare_parameter( "topic_suggested_trajectory", suggested_trajectory_topic );
+  reference_trajectory_topic            = node.declare_parameter( "topic_reference_trajectory", reference_trajectory_topic );
+  sensor_participants_topic             = node.declare_parameter( "topic_sensor_participants", sensor_participants_topic );
+  infrastructure_participants_topic     = node.declare_parameter( "topic_infrastructure_participants", infrastructure_participants_topic );
+  traffic_signals_topic                 = node.declare_parameter( "topic_traffic_signals", traffic_signals_topic );
+  waypoints_topic                       = node.declare_parameter( "topic_waypoints", waypoints_topic );
+  suggested_trajectory_acceptance_topic = node.declare_parameter( "topic_suggested_trajectory_acceptance",
+                                                                  suggested_trajectory_acceptance_topic );
+  caution_zones_topic                   = node.declare_parameter( "topic_caution_zones", caution_zones_topic );
+  v2x_id                                = node.declare_parameter( "v2x_id", v2x_id );
 }
 } // namespace adore

@@ -13,7 +13,7 @@ struct ConditionParams
 {
   double gps_sigma_ok      = 0.2;
   size_t min_ref_traj_size = 5;
-  double max_ref_traj_age  = 0.5; // [s]
+  double max_ref_traj_age  = 2.5; // [s]
   double min_route_length  = 4.0; // [m]
 };
 
@@ -126,6 +126,58 @@ evaluate_conditions( const Domain& d, const ConditionParams& p )
     if( c.eval( d, p ) )
       mask.set( c.flag );
   return mask;
+}
+
+inline void
+print_condition_mask( const ConditionMask& mask )
+{
+  // You could replace std::cout with your preferred logging facility
+  std::cerr << "Active conditions:\n";
+
+  bool any = false;
+  for( const auto& c : k_conditions )
+  {
+    if( mask.has( c.flag ) )
+    {
+      // Use string_view literals for compile-time names
+      switch( c.flag )
+      {
+        case STATE:
+          std::cerr << "  STATE\n";
+          break;
+        case SAFETY_CORRIDOR:
+          std::cerr << "  SAFETY_CORRIDOR\n";
+          break;
+        case WAYPOINTS:
+          std::cerr << "  WAYPOINTS\n";
+          break;
+        case REFERENCE_TRAJECTORY:
+          std::cerr << "  REFERENCE_TRAJECTORY\n";
+          break;
+        case ROUTE:
+          std::cerr << "  ROUTE\n";
+          break;
+        case IN_ASSISTANCE_ZONE:
+          std::cerr << "  IN_ASSISTANCE_ZONE\n";
+          break;
+        case SENT_ASSISTANCE_REQUEST:
+          std::cerr << "  SENT_ASSISTANCE_REQUEST\n";
+          break;
+        case SUGGESTED_TRAJECTORY_ACCEPTANCE:
+          std::cerr << "  SUGGESTED_TRAJECTORY_ACCEPTANCE\n";
+          break;
+        default:
+          std::cerr << "  <UNKNOWN>\n";
+          break;
+      }
+      any = true;
+    }
+  }
+
+  if( !any )
+  {
+    std::cerr << "  (none)\n";
+  }
 }
 
 } // namespace adore::conditions
