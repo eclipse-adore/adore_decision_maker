@@ -88,6 +88,10 @@ The **Decision Maker Node** orchestrates the vehicle's behavior by determining t
    - Type: `adore_ros2_msgs::msg::TrafficSignals`
    - Description: Updates traffic signal information.
 
+10. **`time_headway`**
+   - Type: `std_msgs::msg::Float64`
+   - Description: Received time headway and updates the planner to use this variable time headway.
+
 ---
 
 ## Parameters

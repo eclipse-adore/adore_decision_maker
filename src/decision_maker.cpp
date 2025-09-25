@@ -32,9 +32,11 @@ namespace adore
 DecisionMaker::DecisionMaker( const rclcpp::NodeOptions& options ) :
   Node( "decision_maker", options )
 {
+  declare_parameters();
   load_parameters();
   create_subscribers();
   create_publishers();
+  setup_parameter_handling();
   print_init_info();
 }
 
@@ -98,29 +100,45 @@ DecisionMaker::create_subscribers()
   //   "/infrastructure/traffic_participants_with_trajectories", 1, std::bind( &DecisionMaker::infrastructure_traffic_participants_callback, this, std::placeholders::_1 ) );
   subscriber_infrastructure_traffic_participants = create_subscription<adore_ros2_msgs::msg::TrafficParticipantSet>(
     "infrastructure_traffic_participants", 1, std::bind( &DecisionMaker::infrastructure_traffic_participants_callback, this, std::placeholders::_1 ) );
+  
+  subscriber_time_headway = create_subscription<std_msgs::msg::Float64>( "time_headway", 1, std::bind( &DecisionMaker::time_headway_callback, this,
+      std::placeholders::_1 ) );
 
   subscriber_user_input = create_subscription<std_msgs::msg::String>( "user_input", 1, std::bind( &DecisionMaker::user_input_callback, this, std::placeholders::_1 ) );
   main_timer = create_wall_timer( std::chrono::milliseconds( static_cast<size_t>( 1000 * dt ) ), std::bind( &DecisionMaker::run, this ) );
 }
 
 void
-DecisionMaker::load_parameters()
+DecisionMaker::setup_parameter_handling()
 {
-  std::string vehicle_model_file;
-  declare_parameter( "vehicle_model_file", "" );
-  get_parameter( "vehicle_model_file", vehicle_model_file );
-  model = dynamics::PhysicalVehicleModel( vehicle_model_file, false );
+  // callback for newly set parameters (before)
+  parameter_callback_handle = this->add_on_set_parameters_callback(
+    std::bind(&DecisionMaker::on_set_parameters_callback, this, std::placeholders::_1));
+  
+  // callback for newly set parameters (after)  
+  parameter_event_handler = std::make_shared<rclcpp::ParameterEventHandler>(this);
+  auto on_change_callback =
+    [this](const rcl_interfaces::msg::ParameterEvent &event) -> void
+    {
+      this->on_parameters_changed(event);
+    };
+  subscriber_parameter_event = parameter_event_handler->add_parameter_event_callback(on_change_callback);
+}
 
-  declare_parameter( "debug_mode_active", true );
+void
+DecisionMaker::load_parameters(bool initial_call) // default: initial_call = true)
+{
+  // NO parameter declaration in this function in order to allow to rerun it.
+  if(initial_call)
+  {
+    std::string vehicle_model_file;
+    get_parameter( "vehicle_model_file", vehicle_model_file );
+    model = dynamics::PhysicalVehicleModel( vehicle_model_file, false );
+  }
+
   get_parameter( "debug_mode_active", debug_mode_active );
-
-  declare_parameter( "use_reference_trajectory_as_is", true );
   get_parameter( "use_reference_trajectory_as_is", default_use_reference_trajectory_as_is );
-
-  declare_parameter( "only_follow_reference_trajectories", false );
   get_parameter( "only_follow_reference_trajectories", only_follow_reference_trajectories );
-
-  declare_parameter( "optinlc_route_following", false );
   get_parameter( "optinlc_route_following", use_opti_nlc_route_following );
 
   declare_parameter( "only_suggestion", false );
@@ -128,14 +146,10 @@ DecisionMaker::load_parameters()
 
   declare_parameter( "dt", 0.1 );
   get_parameter( "dt", dt );
-
-  declare_parameter( "min_route_length", 4.0 );
   get_parameter( "min_route_length", min_route_length );
 
   declare_parameter( "min_reference_trajectory_size", 8 );
   get_parameter( "min_reference_trajectory_size", min_reference_trajectory_size );
-
-  declare_parameter( "remote_operation_speed", 2.0 );
   get_parameter( "remote_operation_speed", remote_operation_speed );
 
   declare_parameter( "allow_remote_trajectory_execution", allow_remote_trajectory_execution);
@@ -160,13 +174,10 @@ DecisionMaker::load_parameters()
   // Planner related parameters
   std::vector<std::string> keys;
   std::vector<double>      values;
-  declare_parameter( "planner_settings_keys", keys );
-  declare_parameter( "planner_settings_values", values );
   get_parameter( "planner_settings_keys", keys );
   get_parameter( "planner_settings_values", values );
 
   std::vector<double> ra_polygon_values; // request assistance polygon
-  declare_parameter( "request_assistance_polygon", std::vector<double>{} );
   get_parameter( "request_assistance_polygon", ra_polygon_values );
 
   // Convert the parameter into a Polygon2d
@@ -198,6 +209,29 @@ DecisionMaker::load_parameters()
 
   opti_nlc_trajectory_planner.set_parameters( planner_settings );
   multi_agent_PID_planner.set_parameters( planner_settings );
+}
+
+void
+DecisionMaker::declare_parameters()
+{
+  declare_parameter( "vehicle_model_file", "" );
+  declare_parameter( "debug_mode_active", true );
+  declare_parameter( "use_reference_trajectory_as_is", true );
+  declare_parameter( "only_follow_reference_trajectories", false );
+  declare_parameter( "optinlc_route_following", false );
+  declare_parameter( "dt", 0.05 );
+  declare_parameter( "min_route_length", 4.0 );
+  declare_parameter( "min_reference_trajectory_size", 5 );
+  declare_parameter( "remote_operation_speed", 2.0 );
+  declare_parameter( "max_acceleration", 2.0 );
+  declare_parameter( "min_acceleration", -2.0 );
+  declare_parameter( "max_steering", 0.7 );
+  std::vector<std::string> keys;
+  std::vector<double>      values;
+  declare_parameter( "planner_settings_keys", keys );
+  declare_parameter( "planner_settings_values", values ); 
+  std::vector<double> ra_polygon_values; // request assistance polygon
+  declare_parameter( "request_assistance_polygon", std::vector<double>{} );
 }
 
 void
@@ -655,6 +689,15 @@ DecisionMaker::latest_route_valid()
 }
 
 void
+DecisionMaker::time_headway_callback( const std_msgs::msg::Float64& msg )
+{
+  double time_headway = msg.data;
+  std::map<std::string, double> params;
+  params["time_headway"] = time_headway;
+  multi_agent_PID_planner.set_parameters( params );
+}
+
+void
 DecisionMaker::route_callback( const adore_ros2_msgs::msg::Route& msg )
 {
   latest_route = map::conversions::to_cpp_type( msg );
@@ -1048,6 +1091,35 @@ void DecisionMaker::user_input_callback( const std_msgs::msg::String& msg )
   {
     allow_remote_participant_detection = true;
   }
+}
+
+// this callback is called if parameters are newly set (before)
+rcl_interfaces::msg::SetParametersResult
+DecisionMaker::on_set_parameters_callback(
+    const std::vector<rclcpp::Parameter> &parameters)
+{
+  rcl_interfaces::msg::SetParametersResult result;
+  result.successful = true;
+
+  for (const auto &param : parameters)
+  {
+    RCLCPP_INFO(this->get_logger(),"Parameter '%s' changed to new value: %s",
+                param.get_name().c_str(),param.value_to_string().c_str());
+  }
+
+  return result;
+}
+
+// this callback is called if parameters are newly set (after)
+void
+DecisionMaker::on_parameters_changed(
+  const rcl_interfaces::msg::ParameterEvent &event)
+{
+  if (event.node != this->get_fully_qualified_name()) {
+    return; // change of parameters does not affect this node.
+  }
+  load_parameters(false); // reload parameters as they might have changed
+  RCLCPP_INFO(this->get_logger(), "Parameters have been changed and therefore reloaded.");
 }
 
 } // namespace adore

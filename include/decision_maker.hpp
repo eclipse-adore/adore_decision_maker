@@ -48,6 +48,7 @@
 #include "sensor_msgs/msg/nav_sat_fix.hpp"
 #include "std_msgs/msg/bool.hpp"
 #include "std_msgs/msg/string.hpp"
+#include "std_msgs/msg/float64.hpp"
 
 namespace adore
 {
@@ -114,6 +115,7 @@ private:
   rclcpp::Subscription<adore_ros2_msgs::msg::TrafficParticipantSet>::SharedPtr subscriber_traffic_participant_set;
   rclcpp::Subscription<adore_ros2_msgs::msg::TrafficParticipantSet>::SharedPtr subscriber_infrastructure_traffic_participants;
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr subscriber_user_input;
+  rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr                      subscriber_time_headway;
 
   // LATEST RECEIVED DATA
   std::optional<dynamics::Trajectory>                 latest_reference_trajectory = std::nullopt;
@@ -148,9 +150,20 @@ private:
   void traffic_participants_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg );
   void infrastructure_traffic_participants_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg );
   void user_input_callback( const std_msgs::msg::String& msg );
+  void time_headway_callback( const std_msgs::msg::Float64& msg );
 
   void compute_routes_for_traffic_participant_set( dynamics::TrafficParticipantSet& traffic_participant_set );
   void compute_trajectories_for_traffic_participant_set( dynamics::TrafficParticipantSet& traffic_participant_set );
+
+  // parameter related callbacks
+  rcl_interfaces::msg::SetParametersResult on_set_parameters_callback(const std::vector<rclcpp::Parameter> &parameters);
+  void on_parameters_changed(const rcl_interfaces::msg::ParameterEvent &event);
+
+  // allow having callbacks for newly set parameters:
+  OnSetParametersCallbackHandle::SharedPtr parameter_callback_handle; // on setting parameters
+  std::shared_ptr<rclcpp::ParameterEventHandler> parameter_event_handler; // after setting parameters
+  rclcpp::ParameterEventCallbackHandle::SharedPtr subscriber_parameter_event; // subscribe to parameter events
+ 
 
   // OTHER MEMBERS
   bool                           default_use_reference_trajectory_as_is = true;
@@ -191,7 +204,9 @@ private:
   void debug_info(bool print);
   void create_subscribers();
   void create_publishers();
-  void load_parameters();
+  void setup_parameter_handling();
+  void declare_parameters();
+  void load_parameters(bool initial_call = true);
   void publish_traffic_participant();
 
   math::Point2d goal;
