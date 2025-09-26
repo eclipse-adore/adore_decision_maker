@@ -141,14 +141,11 @@ DecisionMaker::load_parameters(bool initial_call) // default: initial_call = tru
   get_parameter( "only_follow_reference_trajectories", only_follow_reference_trajectories );
   get_parameter( "optinlc_route_following", use_opti_nlc_route_following );
 
-  declare_parameter( "only_suggestion", false );
   get_parameter( "only_suggestion", only_suggestion );
 
-  declare_parameter( "dt", 0.1 );
   get_parameter( "dt", dt );
   get_parameter( "min_route_length", min_route_length );
 
-  declare_parameter( "min_reference_trajectory_size", 8 );
   get_parameter( "min_reference_trajectory_size", min_reference_trajectory_size );
   get_parameter( "remote_operation_speed", remote_operation_speed );
 
@@ -158,9 +155,6 @@ DecisionMaker::load_parameters(bool initial_call) // default: initial_call = tru
   declare_parameter( "allow_remote_participant_detection", allow_remote_participant_detection);
   get_parameter( "allow_remote_participant_detection", allow_remote_participant_detection);
 
-  declare_parameter( "max_acceleration", 2.0 );
-  declare_parameter( "min_acceleration", -2.0 );
-  declare_parameter( "max_steering", 0.7 );
   declare_parameter( "max_speed", 7.0 );
   get_parameter( "max_speed", max_speed );
   get_parameter( "max_acceleration", command_limits.max_acceleration );
@@ -219,6 +213,7 @@ DecisionMaker::declare_parameters()
   declare_parameter( "use_reference_trajectory_as_is", true );
   declare_parameter( "only_follow_reference_trajectories", false );
   declare_parameter( "optinlc_route_following", false );
+  declare_parameter( "only_suggestion", false );
   declare_parameter( "dt", 0.05 );
   declare_parameter( "min_route_length", 4.0 );
   declare_parameter( "min_reference_trajectory_size", 5 );
@@ -489,7 +484,6 @@ DecisionMaker::compute_trajectories_for_traffic_participant_set( dynamics::Traff
   {
     overview += "stopping at traffic light, ";
   }
-
 }
 
 void
@@ -535,7 +529,6 @@ DecisionMaker::follow_route()
   std::cerr << "time taken for prediction: " << now().seconds() - start_time << std::setprecision(14) << std::endl;
   planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
                                                                     traffic_participants );
-
   if( planned_trajectory.states.size() < 2 )
   {
     overview += "planned trajectory has no more states, ";
