@@ -99,7 +99,7 @@ private:
   rclcpp::Publisher<adore_ros2_msgs::msg::AssistanceRequest>::SharedPtr  publisher_request_assistance_remote_operations;
   rclcpp::Publisher<adore_ros2_msgs::msg::CautionZone>::SharedPtr        publisher_caution_zones;
   rclcpp::Publisher<adore_ros2_msgs::msg::TrafficParticipant>::SharedPtr publisher_traffic_participant;
-
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_overview;
 
   // SUBSCRIBERS
   rclcpp::Subscription<adore_ros2_msgs::msg::Route>::SharedPtr                 subscriber_route;
@@ -111,13 +111,15 @@ private:
   rclcpp::Subscription<adore_ros2_msgs::msg::Waypoints>::SharedPtr             subscriber_waypoints;
   rclcpp::Subscription<adore_ros2_msgs::msg::TrafficSignals>::SharedPtr        subscriber_traffic_signals;
   rclcpp::Subscription<adore_ros2_msgs::msg::SafetyCorridor>::SharedPtr        subscriber_safety_corridor;
+  rclcpp::Subscription<adore_ros2_msgs::msg::CautionZone>::SharedPtr        subscriber_caution_zone;
   rclcpp::Subscription<adore_ros2_msgs::msg::TrafficParticipantSet>::SharedPtr subscriber_traffic_participant_set;
   rclcpp::Subscription<adore_ros2_msgs::msg::TrafficParticipantSet>::SharedPtr subscriber_infrastructure_traffic_participants;
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr subscriber_user_input;
   rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr                      subscriber_time_headway;
-
 
   // LATEST RECEIVED DATA
   std::optional<dynamics::Trajectory>                 latest_reference_trajectory = std::nullopt;
+  std::optional<dynamics::Trajectory>                 latest_reference_trajectory_mrm = std::nullopt;
   std::optional<map::Route>                           latest_route                = std::nullopt;
   std::optional<map::Map>                             latest_local_map            = std::nullopt;
   std::optional<dynamics::VehicleStateDynamic>        latest_vehicle_state        = std::nullopt;
@@ -126,8 +128,11 @@ private:
   std::deque<adore::math::Point2d>                    latest_waypoints;
   dynamics::TrafficParticipantSet                     traffic_participants;
 
+  double turn_off_participants_duration = 5.0;
+  std::optional<double> turn_off_participants_untill = std::nullopt;
 
   bool latest_trajectory_valid();
+  bool latest_trajectory_mrm_valid();
   bool latest_route_valid();
 
 
@@ -137,11 +142,14 @@ private:
   void vehicle_state_callback( const adore_ros2_msgs::msg::VehicleStateDynamic& msg );
   void local_map_callback( const adore_ros2_msgs::msg::Map& msg );
   void safety_corridor_callback( const adore_ros2_msgs::msg::SafetyCorridor& msg );
+  void caution_zone_callback( const adore_ros2_msgs::msg::CautionZone& msg );
   void vehicle_info_callback( const adore_ros2_msgs::msg::VehicleInfo& msg );
   void waypoints_callback( const adore_ros2_msgs::msg::Waypoints& waypoints );
   void suggested_trajectory_acceptance_callback( const std_msgs::msg::Bool& msg );
   void traffic_signals_callback( const adore_ros2_msgs::msg::TrafficSignals& msg );
   void traffic_participants_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg );
+  void infrastructure_traffic_participants_callback( const adore_ros2_msgs::msg::TrafficParticipantSet& msg );
+  void user_input_callback( const std_msgs::msg::String& msg );
   void time_headway_callback( const std_msgs::msg::Float64& msg );
 
   void compute_routes_for_traffic_participant_set( dynamics::TrafficParticipantSet& traffic_participant_set );
@@ -163,10 +171,15 @@ private:
   double                         min_route_length                       = 4.0;
   double                         dt                                     = 0.1;
   double                         remote_operation_speed                 = 2.0;
+  double                         max_speed                              = 7.0;
   int                            ego_id                                 = 777; // can be changed to a standard value
   dynamics::VehicleCommandLimits command_limits                         = { 0.7, -2.0, 2.0 };
   std::map<std::string, double>  planner_settings;
   size_t                         min_reference_trajectory_size = 5;
+  bool allow_remote_participant_detection = true;
+  bool allow_remote_trajectory_execution = true;
+  bool only_suggestion = false;
+  std::string overview;
 
   // OptiNLC related members
   planner::OptiNLCTrajectoryOptimizer opti_nlc_trajectory_optimizer;
@@ -188,7 +201,7 @@ private:
   bool   debug_mode_active          = true;
 
   void print_init_info();
-  void print_debug_info();
+  void debug_info(bool print);
   void create_subscribers();
   void create_publishers();
   void setup_parameter_handling();
