@@ -1,111 +1,76 @@
-# Contributing to ADORe
+# Contributing to the project 
 
-> ADORe is proudly open source. Sponsor features by sending a pull request.  
-> We would also love to know how you are using ADORe – reach out to us on GitHub.  
->
-> Did you find a bug? Then submit a GitHub [issue 🔗](https://github.com/eclipse/adore/issues) or provide a solution by  
-> sending a [pull request 🔗](https://github.com/eclipse/adore/pulls), contributions are welcome!
+Thank you for your interest in contributing to this Eclipse project!  
+This document outlines the process and guidelines for contributing.
 
 ---
 
-## 1. Getting Started
+## Eclipse Foundation Requirements
 
-1. Fork the repository to your own GitHub account.
-2. Clone your fork:
+This project is governed by the [Eclipse Foundation Development Process](https://www.eclipse.org/projects/dev_process/).  
+Before contributing, please ensure you have completed:
+
+- **Eclipse Contributor Agreement (ECA)**  
+  All contributors must have a valid, signed [ECA](https://www.eclipse.org/legal/eca/).  
+  Contributions can only be accepted from contributors with an active ECA.
+
+- **Sign-off on commits**  
+  Each commit must be signed off to certify compliance with the [Developer Certificate of Origin (DCO)](https://developercertificate.org/).  
+  Use the `-s` flag when committing:  
+
+  ```bash
+  git commit -s -m "Commit message"
+  ```
+
+---
+
+## How to Contribute
+
+1. **Fork and clone the repository**  
    ```bash
-   git clone https://github.com/your-username/adore.git
-   cd adore
+   git clone https://github.com/eclipse/[project].git
    ```
-3. Set up the upstream remote:
+
+2. **Create a feature branch**  
    ```bash
-   git remote add upstream https://github.com/eclipse/adore.git
-   git fetch upstream
+   git checkout -b feature/my-feature
    ```
-4. Ensure you're working off the `develop` branch:
+
+3. **Make your changes**  
+   - Follow project coding style and guidelines.
+   - Include/update tests where appropriate.
+   - Update documentation if behavior changes.
+
+4. **Run tests locally**  
+   Ensure the build and test suite passes before opening a PR:
    ```bash
-   git checkout develop
-   git pull upstream develop
+   mvn clean verify
    ```
 
-Refer to the repository’s **README** for details about system requirements, installation steps (including Docker and ROS 2), and quick-start examples.
-
----
-
-## 2. How to Contribute
-
-### Reporting Issues
-- Ensure the issue has not already been reported.
-- Provide a clear title and detailed description, including:
-  - Steps to reproduce
-  - Expected vs actual behavior
-  - Environment details (OS, Architecture, etc...)
-- Label the issue according to the project’s conventions if applicable.
-
-### Suggesting Features
-- Propose enhancements or extensions, e.g., for planning algorithms or simulation integration (CARLA, SUMO).
-- Describe use cases and potential benefits.
-
-### Submitting Pull Requests (PRs)
-
-1. Create a feature branch:
+5. **Commit and push**  
    ```bash
-   git checkout -b feature/my-enhancement
+   git commit -s -m "Describe your change"
+   git push origin feature/my-feature
    ```
-2. Commit changes with descriptive messages.
-3. Rebase on the latest `develop` branch to keep history clean:
-   ```bash
-   git fetch upstream
-   git rebase upstream/develop
-   ```
-4. Push to your fork and open a PR against `develop`.
-5. In your PR description, explain:
-   - What the change addresses.
-   - Any new dependencies or configuration adjustments.
-   - How to test it.
 
-### Code Style & Quality
-- Adhere to the repository’s formatting and style rules.
-  - **C++**: follow `.clang-format`
-  - **Python / Shell**: match formatting of existing code
-  - Maintain clean, readable commit history
-- If applicable, ensure tests are included or updated.
-
-### Documentation
-- Add or update docs in the `documentation/technical_reference_manual` folder:
-  - Installation instructions
-  - Usage examples or reference manual
-  - Architecture overviews, etc.
-- Keep documentation consistent with existing style and structure.
-- spell check you contributions with `aspell`
+6. **Open a Pull Request (PR)**  
+   - Clearly describe the problem and solution.
+   - Reference any related issues (`Closes #123`).
+   - Ensure all checks pass before requesting review.
 
 ---
 
-## 3. Review Workflow
+## Reporting Issues
 
-- PRs will be reviewed by maintainers and may receive feedback.
-- Please address comments promptly.
-- Once approved, your PR will be merged into `develop`.
-- Major features or disruptive changes may require design discussions or a design document.
-
----
-
-## 4. Community & Support
-
-- For general discussions, reach out via GitHub Discussions or open a new issue.
-- Contributors may be acknowledged in an **ACKNOWLEDGMENTS** section in the README or a separate file.
-- For any queries, feel free to contact the maintainers.
+- Use the GitHub Issues page.
+- Provide steps to reproduce, expected behavior, and actual behavior.
+- Attach logs, stack traces, or test cases where possible.
 
 ---
 
-## 5. Code of Conduct
+## License
 
-By participating, you agree to follow our [Code of Conduct](CODE_OF_CONDUCT.md), 
-which aims to foster a welcoming and respectful environment.
-
+All contributions to this project are made under the terms of the [Eclipse Public License 2.0 (EPL-2.0)](https://www.eclipse.org/legal/epl-2.0/).
 
 ---
-
-## Thank You!
-
-Your contributions help evolve **ADORe** and support the advancement of autonomous vehicle research. Welcome aboard!
 
