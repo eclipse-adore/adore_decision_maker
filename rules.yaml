@@ -1,0 +1,54 @@
+rules:
+  - name: Exit Safety Corridor
+    require: [state_ok, safety_corridor_present]
+    forbid:  []
+    behaviour: safety_corridor
+    priority: 80
+
+  - name: Follow Assistance
+    require: [state_ok, need_assistance, waypoints_available, suggested_trajectory_accepted]
+    forbid:  []
+    behaviour: follow_assistance
+    priority: 70
+
+  - name: Request Assistance
+    require: [state_ok, need_assistance]
+    forbid:  [sent_assistance_request, suggested_trajectory_accepted]
+    behaviour: request_assistance
+    priority: 65
+
+  - name: Wait For Assistance
+    require: [state_ok, need_assistance, sent_assistance_request]
+    forbid:  []
+    behaviour: waiting_for_assistance
+    priority: 60
+
+  - name: Follow Reference
+    require: [state_ok, reference_traj_valid]
+    forbid:  []
+    behaviour: follow_reference
+    priority: 50
+
+  - name: Follow Route
+    require: [state_ok, route_available]
+    forbid:  []
+    behaviour: follow_route
+    priority: 40
+
+  - name: Minimum Risk Manoeuvre
+    require: [state_ok, route_available]
+    forbid:  [reference_traj_valid, waypoints_available, need_assistance]
+    behaviour: minimum_risk
+    priority: 30
+
+  - name: Standstill
+    require: [state_ok]
+    forbid:  []
+    behaviour: standstill
+    priority: 20
+
+  - name: Emergency Stop
+    require: []
+    forbid:  []
+    behaviour: emergency_stop
+    priority: -1000

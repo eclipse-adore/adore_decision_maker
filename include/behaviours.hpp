@@ -40,5 +40,27 @@ namespace behaviours
 [[nodiscard]] Decision request_assistance( const Domain&, DecisionTools& );
 [[nodiscard]] Decision minimum_risk( const Domain&, DecisionTools& );
 
+// create map lookup
+using BehaviourFnPtr = Decision ( * )( const Domain&, DecisionTools& );
+
+using BehaviourMap = std::unordered_map<std::string, BehaviourFnPtr>;
+
+inline BehaviourMap
+make_behaviour_map()
+{
+  using namespace behaviours;
+  return {
+    {         "emergency_stop",         &emergency_stop },
+    {             "standstill",             &standstill },
+    {       "follow_reference",       &follow_reference },
+    {      "follow_assistance",      &follow_assistance },
+    { "waiting_for_assistance", &waiting_for_assistance },
+    {           "follow_route",           &follow_route },
+    {        "safety_corridor",        &safety_corridor },
+    {     "request_assistance",     &request_assistance },
+    {           "minimum_risk",           &minimum_risk },
+  };
+}
+
 } // namespace behaviours
 } // namespace adore

@@ -4,7 +4,6 @@
 
 namespace adore::behaviours
 {
-
 Decision
 emergency_stop( const Domain& domain, DecisionTools& )
 {
@@ -157,5 +156,6 @@ minimum_risk( const Domain& domain, DecisionTools& tools )
 
   return out;
 }
+
 
 } // namespace adore::behaviours

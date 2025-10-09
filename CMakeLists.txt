@@ -18,12 +18,12 @@ endif()
 
 # Dependencies
 find_package(ament_cmake REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(adore_math REQUIRED)
 find_package(adore_map REQUIRED)
 find_package(adore_planning REQUIRED)
-
 find_package(adore_ros2_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(tf2 REQUIRED)
@@ -31,6 +31,8 @@ find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(adore_dynamics_conversions REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(yaml_cpp_vendor REQUIRED)
+find_package(yaml-cpp REQUIRED)  # provides the CMake target 'yaml-cpp'
 
 # Add additional adore_* or ROS 2 dependencies if needed
 
@@ -41,6 +43,7 @@ add_executable(${PROJECT_NAME}
   src/behaviours.cpp
   src/domain.cpp
   src/conditions.cpp
+  src/rules.cpp
 
 )
 
@@ -51,6 +54,7 @@ target_include_directories(${PROJECT_NAME}
 )
 
 ament_target_dependencies(${PROJECT_NAME}
+  ament_index_cpp
   rclcpp
   rclcpp_components
   adore_math
@@ -63,11 +67,17 @@ ament_target_dependencies(${PROJECT_NAME}
   tf2_geometry_msgs
   adore_dynamics_conversions
   sensor_msgs
+  yaml-cpp
+  yaml_cpp_vendor
 )
+target_link_libraries(${PROJECT_NAME} yaml-cpp)
 
 install(TARGETS ${PROJECT_NAME}
   DESTINATION lib/${PROJECT_NAME}
 )
+
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/rules.yaml
+        DESTINATION share/${PROJECT_NAME}/config)
 
 # Component library (without main)
 add_library(${PROJECT_NAME}_component SHARED
@@ -81,6 +91,7 @@ target_include_directories(${PROJECT_NAME}_component
 )
 
 ament_target_dependencies(${PROJECT_NAME}_component
+  ament_index_cpp
   rclcpp
   rclcpp_components
   adore_math
@@ -93,7 +104,10 @@ ament_target_dependencies(${PROJECT_NAME}_component
   tf2_geometry_msgs
   adore_dynamics_conversions
   sensor_msgs
+  yaml_cpp_vendor
+  yaml-cpp
 )
+target_link_libraries(${PROJECT_NAME}_component yaml-cpp)
 
 rclcpp_components_register_node(${PROJECT_NAME}_component
   PLUGIN "adore::DecisionMaker"
@@ -107,3 +121,6 @@ install(TARGETS ${PROJECT_NAME}_component
 )
 
 ament_package()
+
+
+

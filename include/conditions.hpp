@@ -6,178 +6,57 @@
 
 namespace adore::conditions
 {
-//---------------------------------------------------------------
-// Threshold parameters
-//---------------------------------------------------------------
+
+// define condition parameters
 struct ConditionParams
 {
-  double gps_sigma_ok      = 0.2;
+  // reference trajectory
   size_t min_ref_traj_size = 5;
-  double max_ref_traj_age  = 2.5; // [s]
-  double min_route_length  = 4.0; // [m]
+  double max_ref_traj_age  = 1.0; // [s]
+  size_t min_route_length  = 20;  // [m]
+  double gps_sigma_ok      = 1.0; // [m]s
 };
 
-//---------------------------------------------------------------
-// Atomic flag bits
-//---------------------------------------------------------------
-enum Condition : std::uint32_t
-{
-  STATE                           = 1u << 1,
-  SAFETY_CORRIDOR                 = 1u << 2,
-  WAYPOINTS                       = 1u << 3,
-  REFERENCE_TRAJECTORY            = 1u << 4,
-  ROUTE                           = 1u << 5,
-  IN_ASSISTANCE_ZONE              = 1u << 7,
-  SENT_ASSISTANCE_REQUEST         = 1u << 8,
-  SUGGESTED_TRAJECTORY_ACCEPTANCE = 1u << 9,
-};
+using ConditionFnPtr = bool ( * )( const Domain&, const ConditionParams& );
+using ConditionMap   = std::unordered_map<std::string, ConditionFnPtr>;
+using ConditionState = std::unordered_map<std::string, bool>;
 
 //---------------------------------------------------------------
 // Per‑flag check functions
 //---------------------------------------------------------------
-bool state_ok( const Domain& d, const ConditionParams& );
-bool safety_corridor_present( const Domain& d, const ConditionParams& );
-bool waypoints_available( const Domain& d, const ConditionParams& );
-bool reference_traj_valid( const Domain& d, const ConditionParams& p );
-bool route_available( const Domain& d, const ConditionParams& p );
-bool need_assistance( const Domain& d, const ConditionParams& );
-bool sent_assistance_request( const Domain& d, const ConditionParams& );
-bool suggested_trajectory_accepted( const Domain& d, const ConditionParams& );
 
-//---------------------------------------------------------------
-// Descriptor + master constexpr table
-//---------------------------------------------------------------
-struct ConditionDesc
+bool state_ok( const Domain& domain, const ConditionParams& params );
+bool safety_corridor_present( const Domain& domain, const ConditionParams& params );
+bool waypoints_available( const Domain& domain, const ConditionParams& params );
+bool reference_traj_valid( const Domain& domain, const ConditionParams& params );
+bool route_available( const Domain& domain, const ConditionParams& params );
+bool need_assistance( const Domain& domain, const ConditionParams& params );
+bool sent_assistance_request( const Domain& domain, const ConditionParams& params );
+bool suggested_trajectory_accepted( const Domain& domain, const ConditionParams& params );
+
+inline ConditionMap
+make_condition_map()
 {
-  Condition flag;
-  bool ( *eval )( const Domain&, const ConditionParams& );
-};
-
-constexpr std::array<ConditionDesc, 8> k_conditions = {
-  { { STATE, &state_ok },
-   { SAFETY_CORRIDOR, &safety_corridor_present },
-   { WAYPOINTS, &waypoints_available },
-   { REFERENCE_TRAJECTORY, &reference_traj_valid },
-   { ROUTE, &route_available },
-   { IN_ASSISTANCE_ZONE, &need_assistance },
-   { SENT_ASSISTANCE_REQUEST, &sent_assistance_request },
-   { SUGGESTED_TRAJECTORY_ACCEPTANCE, &suggested_trajectory_accepted } }
-};
-
-//---------------------------------------------------------------
-// Type‑safe bit mask wrapper
-//---------------------------------------------------------------
-struct ConditionMask
-{
-  constexpr ConditionMask( Condition c ) :
-    bits{ static_cast<std::uint32_t>( c ) }
-  {}
-
-  constexpr ConditionMask() = default;
-  std::uint32_t bits{ 0u };
-
-  constexpr ConditionMask&
-  set( Condition c )
-  {
-    bits |= static_cast<std::uint32_t>( c );
-    return *this;
-  }
-
-  [[nodiscard]] constexpr bool
-  has( Condition c ) const
-  {
-    return ( bits & static_cast<std::uint32_t>( c ) ) != 0u;
-  }
-
-  [[nodiscard]] constexpr bool
-  all( ConditionMask m ) const
-  {
-    return ( bits & m.bits ) == m.bits;
-  }
-
-  [[nodiscard]] constexpr bool
-  none_of( ConditionMask m ) const
-  {
-    return ( bits & m.bits ) == 0u;
-  }
-};
-
-constexpr ConditionMask
-operator|( Condition a, Condition b )
-{
-  return ConditionMask{}.set( a ).set( b );
+  return {
+    {                      "state_ok",                      state_ok },
+    {       "safety_corridor_present",       safety_corridor_present },
+    {           "waypoints_available",           waypoints_available },
+    {          "reference_traj_valid",          reference_traj_valid },
+    {               "route_available",               route_available },
+    {               "need_assistance",               need_assistance },
+    {       "sent_assistance_request",       sent_assistance_request },
+    { "suggested_trajectory_accepted", suggested_trajectory_accepted },
+  };
 }
 
-constexpr ConditionMask
-operator|( ConditionMask a, Condition b )
+inline ConditionState
+evaluate_conditions( const Domain& domain, const ConditionParams& params, const ConditionMap& condition_map )
 {
-  return a.set( b );
+  ConditionState state;
+  for( const auto& [name, fn] : condition_map )
+    state[name] = fn( domain, params );
+  return state;
 }
 
-//---------------------------------------------------------------
-//  Run‑time evaluation
-//---------------------------------------------------------------
-[[nodiscard]]
-inline ConditionMask
-evaluate_conditions( const Domain& d, const ConditionParams& p )
-{
-  ConditionMask mask;
-  for( const auto& c : k_conditions )
-    if( c.eval( d, p ) )
-      mask.set( c.flag );
-  return mask;
-}
-
-inline void
-print_condition_mask( const ConditionMask& mask )
-{
-  // You could replace std::cout with your preferred logging facility
-  std::cerr << "Active conditions:\n";
-
-  bool any = false;
-  for( const auto& c : k_conditions )
-  {
-    if( mask.has( c.flag ) )
-    {
-      // Use string_view literals for compile-time names
-      switch( c.flag )
-      {
-        case STATE:
-          std::cerr << "  STATE\n";
-          break;
-        case SAFETY_CORRIDOR:
-          std::cerr << "  SAFETY_CORRIDOR\n";
-          break;
-        case WAYPOINTS:
-          std::cerr << "  WAYPOINTS\n";
-          break;
-        case REFERENCE_TRAJECTORY:
-          std::cerr << "  REFERENCE_TRAJECTORY\n";
-          break;
-        case ROUTE:
-          std::cerr << "  ROUTE\n";
-          break;
-        case IN_ASSISTANCE_ZONE:
-          std::cerr << "  IN_ASSISTANCE_ZONE\n";
-          break;
-        case SENT_ASSISTANCE_REQUEST:
-          std::cerr << "  SENT_ASSISTANCE_REQUEST\n";
-          break;
-        case SUGGESTED_TRAJECTORY_ACCEPTANCE:
-          std::cerr << "  SUGGESTED_TRAJECTORY_ACCEPTANCE\n";
-          break;
-        default:
-          std::cerr << "  <UNKNOWN>\n";
-          break;
-      }
-      any = true;
-    }
-  }
-
-  if( !any )
-  {
-    std::cerr << "  (none)\n";
-  }
-}
 
 } // namespace adore::conditions

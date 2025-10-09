@@ -24,19 +24,23 @@ struct Domain
 
   using CautionZones = std::map<std::string, math::Polygon2d>;
 
-  int                                                   v2x_id = 0;
-  std::optional<dynamics::VehicleStateDynamic>          vehicle_state;
-  std::optional<map::Route>                             route;
-  std::optional<adore_ros2_msgs::msg::SafetyCorridor>   safety_corridor;
-  std::optional<dynamics::Trajectory>                   suggested_trajectory;
-  std::optional<dynamics::Trajectory>                   reference_trajectory;
-  dynamics::TrafficParticipantSet                       traffic_participants;
-  CautionZones                                          caution_zones;
+  int                                          v2x_id = 0;
+  std::optional<dynamics::VehicleStateDynamic> vehicle_state;
+  std::optional<map::Route>                    route;
+  std::optional<dynamics::Trajectory>          reference_trajectory;
+  dynamics::TrafficParticipantSet              traffic_participants;
+
   std::map<size_t, adore_ros2_msgs::msg::TrafficSignal> traffic_signals;
-  std::optional<adore_ros2_msgs::msg::Waypoints>        waypoints;
-  bool                                                  suggested_trajectory_acceptance = false;
-  bool                                                  sent_assistance_request         = false;
-  double                                                max_participant_age             = 1.0;
+
+  std::optional<adore_ros2_msgs::msg::SafetyCorridor> safety_corridor;
+
+
+  std::optional<dynamics::Trajectory>            suggested_trajectory;
+  CautionZones                                   caution_zones;
+  std::optional<adore_ros2_msgs::msg::Waypoints> waypoints;
+  bool                                           suggested_trajectory_acceptance = false;
+  bool                                           sent_assistance_request         = false;
+  double                                         max_participant_age             = 1.0;
 
 
   std::vector<rclcpp::SubscriptionBase::SharedPtr> subscribers;

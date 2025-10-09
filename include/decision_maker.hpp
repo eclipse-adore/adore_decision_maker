@@ -4,6 +4,7 @@
 #include "behaviours.hpp"
 #include "conditions.hpp"
 #include "domain.hpp"
+#include "rules.hpp"
 #include <rclcpp/rclcpp.hpp>
 
 namespace adore
@@ -27,6 +28,9 @@ public:
 
 private:
 
+  conditions::ConditionMap     condition_map = conditions::make_condition_map();
+  behaviours::BehaviourMap     behaviour_map = behaviours::make_behaviour_map();
+  rules::Rules                 rules;
   Domain                       domain;
   conditions::ConditionParams  params;
   rclcpp::TimerBase::SharedPtr timer;

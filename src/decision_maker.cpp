@@ -1,6 +1,8 @@
 #include "decision_maker.hpp"
 
-#include "debug_helpers.hpp"
+#include <filesystem>
+
+#include <ament_index_cpp/get_package_share_directory.hpp>
 
 namespace adore
 {
@@ -18,17 +20,15 @@ DecisionMaker::DecisionMaker( const rclcpp::NodeOptions& opts ) :
 void
 DecisionMaker::run()
 {
-  auto cond_mask = conditions::evaluate_conditions( domain, params );
-  if( debug )
-    print_condition_mask( cond_mask );
-  const auto& behaviour        = adore::choose_behaviour( cond_mask );
-  Decision    decision         = behaviour.fn( domain, tools );
+  auto     condition_state     = conditions::evaluate_conditions( domain, params, condition_map );
+  auto     behaviour           = rules::choose_behaviour( condition_state, rules );
+  Decision decision            = behaviour_map[behaviour.value()]( domain, tools );
   decision.traffic_participant = make_participant();
   publisher.publish( decision, domain );
 }
 
 dynamics::TrafficParticipant
-DecisionMaker::make_participant()
+DecisionMaker::make_participant() // TODO move this out
 {
   dynamics::TrafficParticipant participant;
   if( domain.vehicle_state )
@@ -71,6 +71,13 @@ DecisionMaker::load_parameters()
   tools.comfort_settings         = std::make_shared<dynamics::ComfortSettings>(); // default value comfort settings
   tools.planner.set_vehicle_parameters( tools.vehicle_model->params );
   tools.planner.set_comfort_settings( tools.comfort_settings );
+
+  const std::string           pkg        = ament_index_cpp::get_package_share_directory( "decision_maker" );
+  const std::filesystem::path rules_path = std::filesystem::path( pkg ) / "config" / "rules.yaml";
+
+  std::string rules_file = declare_parameter( "rules_file", rules_path.string() );
+  rules                  = rules::load_rules_yaml( rules_file );
+  std::cerr << "rules loaded: " << rules.size() << std::endl;
 }
 
 // -----------------------------------------------------------------------------
@@ -79,14 +86,11 @@ DecisionMaker::load_parameters()
 void
 DecisionPublisher::init( rclcpp::Node& node )
 {
-  const std::string topic_trajectory_decision = node.declare_parameter<std::string>( "topic_trajectory_decision", "trajectory_decision" );
-
+  const std::string topic_trajectory_decision   = node.declare_parameter<std::string>( "topic_trajectory_decision", "trajectory_decision" );
   const std::string topic_trajectory_suggestion = node.declare_parameter<std::string>( "topic_trajectory_suggestion",
                                                                                        "trajectory_suggestion" );
-
-  const std::string topic_assistance_request = node.declare_parameter<std::string>( "topic_assistance_request", "assistance_request" );
-
-  const std::string topic_traffic_participant = node.declare_parameter<std::string>( "topic_traffic_participant", "traffic_participant" );
+  const std::string topic_assistance_request    = node.declare_parameter<std::string>( "topic_assistance_request", "assistance_request" );
+  const std::string topic_traffic_participant   = node.declare_parameter<std::string>( "topic_traffic_participant", "traffic_participant" );
 
   trajectory_publisher            = node.create_publisher<TrajectoryAdapter>( topic_trajectory_decision, 1 );
   trajectory_suggestion_publisher = node.create_publisher<TrajectoryAdapter>( topic_trajectory_suggestion, 1 );
