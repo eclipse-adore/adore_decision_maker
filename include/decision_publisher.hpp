@@ -16,8 +16,6 @@
 
 #include "behaviours.hpp"
 #include "conditions.hpp"
-#include "decision.hpp"
-#include "decision_publisher.hpp"
 #include "domain.hpp"
 #include "rules.hpp"
 #include <rclcpp/rclcpp.hpp>
@@ -25,24 +23,13 @@
 namespace adore
 {
 
-class DecisionMaker : public rclcpp::Node
+struct DecisionPublisher
 {
-public:
-
-  explicit DecisionMaker( const rclcpp::NodeOptions& opts );
-
-private:
-
-  conditions::ConditionMap     condition_map = conditions::make_condition_map();
-  behaviours::BehaviourMap     behaviour_map = behaviours::make_behaviour_map();
-  rules::Rules                 rules;
-  Domain                       domain;
-  DecisionParams               params;
-  rclcpp::TimerBase::SharedPtr timer;
-  DecisionPublisher            publisher;
-
-  void setup();
-  void run(); // main loop
+  rclcpp::Publisher<TrajectoryAdapter>::SharedPtr                       trajectory_publisher;
+  rclcpp::Publisher<TrajectoryAdapter>::SharedPtr                       trajectory_suggestion_publisher;
+  rclcpp::Publisher<adore_ros2_msgs::msg::AssistanceRequest>::SharedPtr assistance_publisher;
+  rclcpp::Publisher<ParticipantAdapter>::SharedPtr                      traffic_participant_publisher;
+  void                                                                  setup( rclcpp::Node& node, const OutTopics& topics );
+  void                                                                  publish( const Decision& decision );
 };
-
 } // namespace adore

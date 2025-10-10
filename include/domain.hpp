@@ -1,3 +1,16 @@
+/********************************************************************************
+ * Copyright (C) 2024-2025 German Aerospace Center (DLR).
+ * Eclipse ADORe, Automated Driving Open Research https://eclipse.org/adore
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0.
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ *
+ * Contributors:
+ *    Marko Mizdrak
+ ********************************************************************************/
 #pragma once
 #include <deque>
 #include <map>
@@ -14,33 +27,31 @@
 #include "adore_ros2_msgs/msg/traffic_signals.hpp"
 #include "adore_ros2_msgs/msg/waypoints.hpp"
 
+#include "decision.hpp"
 #include "std_msgs/msg/bool.hpp"
 
 namespace adore
 {
 struct Domain
 {
-  void setup( rclcpp::Node& node );
+  void setup( rclcpp::Node& node, const DomainParams& params, const InTopics& topics );
 
   using CautionZones = std::map<std::string, math::Polygon2d>;
 
-  int                                          v2x_id = 0;
-  std::optional<dynamics::VehicleStateDynamic> vehicle_state;
-  std::optional<map::Route>                    route;
-  std::optional<dynamics::Trajectory>          reference_trajectory;
-  dynamics::TrafficParticipantSet              traffic_participants;
-
+  // world
+  std::optional<dynamics::VehicleStateDynamic>          vehicle_state;
+  std::optional<map::Route>                             route;
+  std::optional<dynamics::Trajectory>                   reference_trajectory;
+  dynamics::TrafficParticipantSet                       traffic_participants;
   std::map<size_t, adore_ros2_msgs::msg::TrafficSignal> traffic_signals;
+  std::optional<adore_ros2_msgs::msg::SafetyCorridor>   safety_corridor;
+  std::optional<dynamics::Trajectory>                   suggested_trajectory;
+  CautionZones                                          caution_zones;
+  std::optional<adore_ros2_msgs::msg::Waypoints>        waypoints;
+  bool                                                  suggested_trajectory_acceptance = false;
 
-  std::optional<adore_ros2_msgs::msg::SafetyCorridor> safety_corridor;
-
-
-  std::optional<dynamics::Trajectory>            suggested_trajectory;
-  CautionZones                                   caution_zones;
-  std::optional<adore_ros2_msgs::msg::Waypoints> waypoints;
-  bool                                           suggested_trajectory_acceptance = false;
-  bool                                           sent_assistance_request         = false;
-  double                                         max_participant_age             = 1.0;
+  // memory
+  bool sent_assistance_request = false;
 
 
   std::vector<rclcpp::SubscriptionBase::SharedPtr> subscribers;
@@ -52,19 +63,5 @@ struct Domain
     auto sub = node.create_subscription<MsgT>( topic_name, 1, std::forward<CallbackT>( callback ) );
     subscribers.emplace_back( sub );
   }
-
-  void read_topic_params( rclcpp::Node& node );
-
-  std::string state_topic                           = "vehicle_state_dynamic";
-  std::string route_topic                           = "route";
-  std::string safety_corridor_topic                 = "safety_corridor";
-  std::string suggested_trajectory_topic            = "suggested_trajectory";
-  std::string reference_trajectory_topic            = "reference_trajectory";
-  std::string sensor_participants_topic             = "traffic_participants";
-  std::string infrastructure_participants_topic     = "/planned_traffic";
-  std::string traffic_signals_topic                 = "traffic_signals";
-  std::string waypoints_topic                       = "remote_operation_waypoints";
-  std::string suggested_trajectory_acceptance_topic = "suggested_trajectory_accepted";
-  std::string caution_zones_topic                   = "caution_zones";
 };
 } // namespace adore

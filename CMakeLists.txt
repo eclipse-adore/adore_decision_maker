@@ -40,6 +40,8 @@ find_package(yaml-cpp REQUIRED)  # provides the CMake target 'yaml-cpp'
 add_executable(${PROJECT_NAME}
   src/main.cpp
   src/decision_maker.cpp
+  src/decision_publisher.cpp
+
   src/behaviours.cpp
   src/domain.cpp
   src/conditions.cpp

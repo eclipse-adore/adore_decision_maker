@@ -1,21 +1,26 @@
+/********************************************************************************
+ * Copyright (C) 2024-2025 German Aerospace Center (DLR).
+ * Eclipse ADORe, Automated Driving Open Research https://eclipse.org/adore
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0.
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ *
+ * Contributors:
+ *    Marko Mizdrak
+ ********************************************************************************/
 #pragma once
 #include <array>
 #include <cstdint>
 
+#include "decision.hpp"
 #include "domain.hpp"
 
 namespace adore::conditions
 {
 
-// define condition parameters
-struct ConditionParams
-{
-  // reference trajectory
-  size_t min_ref_traj_size = 5;
-  double max_ref_traj_age  = 1.0; // [s]
-  size_t min_route_length  = 20;  // [m]
-  double gps_sigma_ok      = 1.0; // [m]s
-};
 
 using ConditionFnPtr = bool ( * )( const Domain&, const ConditionParams& );
 using ConditionMap   = std::unordered_map<std::string, ConditionFnPtr>;

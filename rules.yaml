@@ -31,13 +31,13 @@ rules:
 
   - name: Follow Route
     require: [state_ok, route_available]
-    forbid:  []
+    forbid:  [need_assistance]
     behaviour: follow_route
     priority: 40
 
   - name: Minimum Risk Manoeuvre
     require: [state_ok, route_available]
-    forbid:  [reference_traj_valid, waypoints_available, need_assistance]
+    forbid:  [ ]
     behaviour: minimum_risk
     priority: 30
 
