@@ -26,9 +26,6 @@ DecisionPublisher::publish( const Decision& decision )
   {
     // TODO
   }
-
-
-  // decision.traffic_participant = participant;
   traffic_participant_publisher->publish( *decision.traffic_participant );
 }
 

@@ -27,7 +27,7 @@
 #include "adore_ros2_msgs/msg/traffic_signals.hpp"
 #include "adore_ros2_msgs/msg/waypoints.hpp"
 
-#include "decision.hpp"
+#include "decision_types.hpp"
 #include "std_msgs/msg/bool.hpp"
 
 namespace adore

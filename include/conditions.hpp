@@ -15,7 +15,7 @@
 #include <array>
 #include <cstdint>
 
-#include "decision.hpp"
+#include "decision_types.hpp"
 #include "domain.hpp"
 
 namespace adore::conditions

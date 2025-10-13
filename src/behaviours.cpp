@@ -59,6 +59,7 @@ follow_route( const Domain& domain, PlanningParams& planning_tools )
 
 
   auto traj = planning_tools.planner.plan_route_trajectory( route_with_signal, *domain.vehicle_state, domain.traffic_participants );
+  traj.adjust_start_time( domain.vehicle_state->time );
 
 
   traj.label     = "Follow Route";

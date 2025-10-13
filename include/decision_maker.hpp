@@ -16,8 +16,8 @@
 
 #include "behaviours.hpp"
 #include "conditions.hpp"
-#include "decision.hpp"
 #include "decision_publisher.hpp"
+#include "decision_types.hpp"
 #include "domain.hpp"
 #include "rules.hpp"
 #include <rclcpp/rclcpp.hpp>
