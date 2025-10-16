@@ -8,7 +8,9 @@ namespace adore
 {
 
 DecisionMaker::DecisionMaker( const rclcpp::NodeOptions& opts ) :
-  rclcpp::Node{ "decision_maker", opts }
+  rclcpp::Node{ "decision_maker", opts },
+  logger( *this )
+
 {
   setup();
   domain.setup( *this, params.domain_params, params.in_topics );
@@ -37,6 +39,10 @@ DecisionMaker::setup()
 
   std::string rules_file = declare_parameter( "rules_file", rules_path.string() );
   rules                  = rules::load_rules_yaml( rules_file );
+  logger.add_info( "node_start_time", this->now().seconds() );
+  logger.add_info( "run_delta_time", params.run_delta_time );
+  logger.add_info( "rules_file", rules_file );
+  logger.publish_snapshot_once( *this );
 }
 
 } // namespace adore

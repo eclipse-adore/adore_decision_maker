@@ -19,6 +19,7 @@
 #include "decision_publisher.hpp"
 #include "decision_types.hpp"
 #include "domain.hpp"
+#include "logging.hpp"
 #include "rules.hpp"
 #include <rclcpp/rclcpp.hpp>
 
@@ -40,6 +41,7 @@ private:
   DecisionParams               params;
   rclcpp::TimerBase::SharedPtr timer;
   DecisionPublisher            publisher;
+  Logger                       logger;
 
   void setup();
   void run(); // main loop
