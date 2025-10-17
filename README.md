@@ -4,21 +4,82 @@
 
 ```mermaid
 flowchart TD
-    A[ROS 2 Inputs<br/>(sensors, map, localization,<br/>routes, suggestions, zones...)] --> B[Domain Layer<br/><small>Maintains world state,<br/>subscribes to inputs</small>]
-    B --> C[Conditions Layer<br/><small>Evaluates predicates<br/>(name → bool)</small>]
-    C --> D[Rules Layer<br/><small>Applies YAML rules:<br/>require / forbid / priority</small>]
-    D --> E[Behaviours Layer<br/><small>Executes chosen behaviour,<br/>produces Decision</small>]
-    E --> F[Decision Publisher<br/><small>Publishes Decision outputs:<br/>trajectory / suggestion / assistance / participant</small>]
-    F --> G[External Systems<br/><small>Controllers, monitors, visualizers</small>]
-    
-    style A fill:#f6f8fa,stroke:#bbb,stroke-width:1px
-    style B fill:#e6f0ff,stroke:#7aa0ff,stroke-width:1px
-    style C fill:#e6ffe6,stroke:#66cc66,stroke-width:1px
-    style D fill:#fff0e6,stroke:#ff9966,stroke-width:1px
-    style E fill:#fffbe6,stroke:#e6c200,stroke-width:1px
-    style F fill:#f0e6ff,stroke:#a077ff,stroke-width:1px
-    style G fill:#f6f8fa,stroke:#bbb,stroke-width:1px
+    %% Top-to-bottom flow
+    classDef layer fill:#f6f8fa,stroke:#bbb,stroke-width:1px,rx:6,ry:6
+    classDef highlight fill:#e8f0ff,stroke:#7aa0ff,stroke-width:1px,rx:6,ry:6
 
+    %% Inputs
+    subgraph A[ROS 2 Inputs]
+        direction TB
+        A1[Sensors]
+        A2[Map / HD map]
+        A3[Localization]
+        A4[Route / waypoints]
+        A5[Suggested trajectory]
+        A6[Caution / safety zones]
+        A7[Perception / participants]
+    end
+    class A layer
+
+    %% Domain
+    subgraph B[Domain Layer]
+        direction TB
+        B1[Subscribe to input topics]
+        B2[Maintain latest world state]
+        B3[Adapters / conversions]
+        B4[Accessors for data]
+        B5[Timestamps and basic flags]
+    end
+    class B layer
+
+    %% Conditions
+    subgraph C[Conditions Layer]
+        direction TB
+        C1[Registry: name -> predicate(Domain)->bool]
+        C2[Evaluate all predicates]
+        C3[Produce ConditionState: name -> true/false]
+        C4[Keep predicates pure and deterministic]
+    end
+    class C layer
+
+    %% Rules
+    subgraph D[Rules Layer]
+        direction TB
+        D1[Load rules from YAML]
+        D2[Check require: all must be true]
+        D3[Check forbid: all must be false]
+        D4[If multiple match: pick highest priority]
+        D5[Output chosen behaviour name]
+    end
+    class D layer
+
+    %% Behaviours
+    subgraph E[Behaviours Layer]
+        direction TB
+        E1[Registry: name -> fn(Domain, Params)->Decision]
+        E2[Plan trajectory if applicable]
+        E3[Optionally produce suggestion]
+        E4[Optionally produce assistance request]
+        E5[Optionally produce participant message]
+        E6[Prefer stateless behaviour functions]
+    end
+    class E layer
+
+    %% Publisher
+    subgraph F[Decision Publisher]
+        direction TB
+        F1[Publish trajectory_decision]
+        F2[Publish trajectory_suggestion]
+        F3[Publish assistance_request]
+        F4[Publish traffic_participant]
+    end
+    class F layer
+
+    %% External
+    G[External Systems: controllers, monitors, visualization]
+
+    %% Flow connections
+    A --> B --> C --> D --> E --> F --> G
 
 ```
 
