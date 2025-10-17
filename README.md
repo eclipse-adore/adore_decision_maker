@@ -2,60 +2,23 @@
 
 ## High‑level Architecture
 
-```
-+-------------------------------------------------------------+
-|                         ROS 2 Inputs                        |
-|  (sensors, localization, route, suggestions, zones, etc.)   |
-+-------------------------------------------------------------+
-                              |
-                              v
-+-------------------------------------------------------------+
-|                         Domain Layer                        |
-|  • Subscribes to input topics                                |
-|  • Maintains latest world state                              |
-|  • Provides accessors for all live data                      |
-+-------------------------------------------------------------+
-                              |
-                              v
-+-------------------------------------------------------------+
-|                        Conditions Layer                     |
-|  • Library of predicates: name → fn(Domain) -> bool          |
-|  • Evaluates current truth values for all conditions         |
-|  • Produces ConditionState (name → true/false)               |
-+-------------------------------------------------------------+
-                              |
-                              v
-+-------------------------------------------------------------+
-|                          Rules Layer                        |
-|  • Loads YAML rules: require / forbid / behaviour / priority |
-|  • Selects the highest-priority rule matching ConditionState |
-|  • Outputs chosen behaviour name                             |
-+-------------------------------------------------------------+
-                              |
-                              v
-+-------------------------------------------------------------+
-|                        Behaviours Layer                     |
-|  • Registry: name → fn(Domain, PlanningParams) -> Decision   |
-|  • Computes trajectory / assistance / participant outputs     |
-|  • Stateless and modular — one function per behaviour        |
-+-------------------------------------------------------------+
-                              |
-                              v
-+-------------------------------------------------------------+
-|                      Decision Publisher                     |
-|  • Publishes selected Decision to ROS 2 topics:              |
-|      - trajectory_decision                                   |
-|      - trajectory_suggestion                                 |
-|      - assistance_request                                    |
-|      - traffic_participant                                   |
-+-------------------------------------------------------------+
-                              |
-                              v
-+-------------------------------------------------------------+
-|                         External Systems                    |
-|  • Downstream controllers, monitors, or visualization tools  |
-|  • Receive and act on the published decisions                |
-+-------------------------------------------------------------+
+```mermaid
+flowchart TD
+    A[ROS 2 Inputs<br/>(sensors, map, localization,<br/>routes, suggestions, zones...)] --> B[Domain Layer<br/><small>Maintains world state,<br/>subscribes to inputs</small>]
+    B --> C[Conditions Layer<br/><small>Evaluates predicates<br/>(name → bool)</small>]
+    C --> D[Rules Layer<br/><small>Applies YAML rules:<br/>require / forbid / priority</small>]
+    D --> E[Behaviours Layer<br/><small>Executes chosen behaviour,<br/>produces Decision</small>]
+    E --> F[Decision Publisher<br/><small>Publishes Decision outputs:<br/>trajectory / suggestion / assistance / participant</small>]
+    F --> G[External Systems<br/><small>Controllers, monitors, visualizers</small>]
+    
+    style A fill:#f6f8fa,stroke:#bbb,stroke-width:1px
+    style B fill:#e6f0ff,stroke:#7aa0ff,stroke-width:1px
+    style C fill:#e6ffe6,stroke:#66cc66,stroke-width:1px
+    style D fill:#fff0e6,stroke:#ff9966,stroke-width:1px
+    style E fill:#fffbe6,stroke:#e6c200,stroke-width:1px
+    style F fill:#f0e6ff,stroke:#a077ff,stroke-width:1px
+    style G fill:#f6f8fa,stroke:#bbb,stroke-width:1px
+
 
 ```
 
