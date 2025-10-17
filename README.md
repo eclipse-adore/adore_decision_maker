@@ -5,73 +5,42 @@
 ```mermaid
 
 flowchart TD
-    %% Top-to-bottom layered system flow
 
-    %% Inputs
-    subgraph A[ROS 2 Inputs]
-      direction TB
-      A1[Sensors]
-      A2[HD map]
-      A3[Localization]
-      A4[Route and waypoints]
-      A5[Suggested trajectory]
-      A6[Safety and caution zones]
-      A7[Perception participants]
-    end
+  A[ROS 2 Inputs
+  sensors, map, localization,
+  route, suggestions, zones, perception]
 
-    %% Domain
-    subgraph B[Domain Layer]
-      direction TB
-      B1[Subscribe to input topics]
-      B2[Maintain latest world state]
-      B3[Adapters and conversions]
-      B4[Data accessors]
-      B5[Timestamps and basic flags]
-    end
+  B[Domain Layer
+  subscribe and cache latest data
+  ]
 
-    %% Conditions
-    subgraph C[Conditions Layer]
-      direction TB
-      C1[Registry mapping names to boolean predicates]
-      C2[Evaluate all predicates on Domain]
-      C3[Produce ConditionState with true or false per name]
-      C4[Predicates are pure and deterministic]
-    end
+  C[Conditions Layer
+  evaluate named predicates on the domain
+  ]
 
-    %% Rules
-    subgraph D[Rules Layer]
-      direction TB
-      D1[Load rules from YAML]
-      D2[Check require all true]
-      D3[Check forbid all false]
-      D4[If multiple match pick highest priority]
-      D5[Output chosen behaviour name]
-    end
+  D[Rules Layer
+  load yaml rules and check require and forbid then resolve priority
+  ]
 
-    %% Behaviours
-    subgraph E[Behaviours Layer]
-      direction TB
-      E1[Registry mapping names to behaviour functions]
-      E2[Plan final trajectory when applicable]
-      E3[Optionally produce trajectory suggestion]
-      E4[Optionally produce assistance request]
-      E5[Optionally produce participant message]
-      E6[Prefer stateless behaviour functions]
-    end
+  E[Behaviours Layer
+  run the selected behaviour using the domain and params
+  ]
 
-    %% Publisher
-    subgraph F[Decision Publisher]
-      direction TB
-      F1[Publish trajectory decision]
-      F2[Publish trajectory suggestion]
-      F3[Publish assistance request]
-      F4[Publish traffic participant]
-    end
+  F[Decision Publisher
+  publish decision to ros 2 topics
+  ]
 
-    G[External systems controllers monitors visualization]
+  G[External Systems
+  controllers, monitors, visualization]
 
-    %% Flow
-    A --> B --> C --> D --> E --> F --> G
+  %% Flow with explicit outputs on edges
+  A --> B
+  B -->|world state snapshot| C
+  C -->|condition state| D
+  D -->|behaviour name| E
+  E -->|decision object| F
+  F -->|ros 2 messages| G
+
 
 
 ```
