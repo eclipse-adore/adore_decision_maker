@@ -19,6 +19,7 @@
 #include <adore_dynamics_conversions.hpp>
 #include <adore_map/route.hpp>
 #include <adore_map_conversions.hpp>
+#include <adore_math/distance.h>
 #include <adore_math/point.h>
 #include <dynamics/trajectory.hpp>
 #include <dynamics/vehicle_state.hpp>
@@ -46,7 +47,7 @@ DecisionMaker::create_publishers()
   publisher_traffic_participant                  = create_publisher<adore_ros2_msgs::msg::TrafficParticipant>( "traffic_participant", 10 );
   publisher_traffic_participant_with_trajectory_prediction = create_publisher<adore_ros2_msgs::msg::TrafficParticipantSet>( "traffic_prediction", 10 );
   publisher_caution_zones                        = create_publisher<adore_ros2_msgs::msg::CautionZone>( "caution_zones", 10 );
-  publisher_overview                        = create_publisher<std_msgs::msg::String>( "overview", 10 );
+  publisher_node_status = create_publisher<adore_ros2_msgs::msg::NodeStatus>( "decision_maker_status", 10 );
 }
 
 void
@@ -229,8 +230,8 @@ DecisionMaker::declare_parameters()
 void
 DecisionMaker::run()
 {
-  overview = "";
-  
+  node_status.clear();
+
   debug_info(debug_mode_active);
 
   update_state();
@@ -265,11 +266,20 @@ DecisionMaker::run()
       break;
   }
 
+  // This is used for visualization
+  if ( latest_vehicle_state )
+  {
+    node_status.add_info("nearest_traffic_light_signal", 3); // This is unknown state (find a better approach)
+    auto closest_signal = math::find_closest_point(latest_vehicle_state.value(), latest_traffic_signals.signals); // Since signals are empty this doesn't need to be checked
+
+    if ( closest_signal.has_value() )
+        node_status.add_info("nearest_traffic_light_signal", closest_signal->state);
+  }
+  
+
   publish_traffic_participant();
 
-  std_msgs::msg::String overview_msg;
-  overview_msg.data = overview;
-  publisher_overview->publish(overview_msg);
+  publisher_node_status->publish(node_status.as_ros_msg( now().seconds() ));
 }
 
 void
@@ -464,22 +474,34 @@ DecisionMaker::compute_trajectories_for_traffic_participant_set( dynamics::Traff
   ego_vehicle.physical_parameters = model.params;
   traffic_participant_set.participants[ego_vehicle.id] = ego_vehicle;
   auto status_from_planner = multi_agent_PID_planner.plan_trajectories( traffic_participant_set );
+
+  // used for visualization
+  node_status.add_info("obstacle_distance", status_from_planner.overview_obstacle_distance);
+
+  // @TODO, find a better way to do this
+  node_status.add_info("stopping_for_object", false);
+  node_status.add_info("stopping_at_goal", false);
+  node_status.add_info("stopping_at_traffic_light", false);
+
   if ( status_from_planner.overview_state == 1 )
   {
-    overview += "stopping for object, ";
+    node_status.add_info("stopping_for_object", true);
+    node_status.overview += "stopping for object, ";
 
     if ( status_from_planner.overview_obstacle_distance < 1000.0)
     {
-      overview += "distance to obstacle: " + std::to_string(status_from_planner.overview_obstacle_distance) + ", ";
+      node_status.overview += "distance to obstacle: " + std::to_string(status_from_planner.overview_obstacle_distance) + ", ";
     }
   }
   if ( status_from_planner.overview_state == 2 )
   {
-    overview += "stopping at goal, ";
+    node_status.add_info("stopping_at_goal", true);
+    node_status.overview += "stopping at goal, ";
   }
   if ( status_from_planner.overview_state == 3 )
   {
-    overview += "stopping at traffic light, ";
+    node_status.add_info("stopping_at_traffic_light", true);
+    node_status.overview += "stopping at traffic light, ";
   }
 }
 
@@ -523,12 +545,12 @@ DecisionMaker::follow_route()
   double start_time = now().seconds();
   multi_agent_PID_planner.max_allowed_speed = max_speed;
   compute_trajectories_for_traffic_participant_set( traffic_participants );
-  std::cerr << "time taken for prediction: " << now().seconds() - start_time << std::setprecision(14) << std::endl;
+  node_status.overview = "time taken for prediction: " + std::to_string(now().seconds() - start_time) + ", ";
   planned_trajectory = opti_nlc_trajectory_planner.plan_trajectory( latest_route.value(), *latest_vehicle_state, *latest_local_map,
                                                                     traffic_participants );
   if( planned_trajectory.states.size() < 2 )
   {
-    overview += "planned trajectory has no more states, ";
+    node_status.overview += "planned trajectory has no more states, ";
     standstill();
     return;
   }
@@ -617,20 +639,20 @@ DecisionMaker::latest_trajectory_valid()
   // }
 
   double time_difference = latest_vehicle_state->time - latest_reference_trajectory->states.front().time;
-  overview += std::to_string(time_difference) + " delay, ";
+  node_status.overview += std::to_string(time_difference) + " delay, ";
 
   // if( time_difference > 0.5 )
   if( time_difference > 1.0 )
   // if( now_unix_s - latest_reference_trajectory->states.front().time > 0.5 )
   {
-    overview += "latest trajectory is too old";
+    node_status.overview += "latest trajectory is too old";
     latest_reference_trajectory = std::nullopt;
     return false;
   }
 
   if( latest_reference_trajectory->states.size() <= min_reference_trajectory_size )
   {
-    overview += "reaching end of validity area, switched back to follow route, ";
+    node_status.overview += "reaching end of validity area, switched back to follow route, ";
     return false;
   }
 
@@ -645,14 +667,14 @@ DecisionMaker::latest_trajectory_mrm_valid()
 
   if( latest_vehicle_state->time - latest_reference_trajectory_mrm->states.front().time > 0.5 )
   {
-    overview += "latest minimum risk trajectory is too old, ";
+    node_status.overview += "latest minimum risk trajectory is too old, ";
     latest_reference_trajectory = std::nullopt;
     return false;
   }
 
   if( latest_reference_trajectory_mrm->states.size() <= min_reference_trajectory_size )
   {
-    overview += "cannot use reference trajectory mrm, too close to validity area border, ";
+    node_status.overview += "cannot use reference trajectory mrm, too close to validity area border, ";
     return false;
   }
 
@@ -664,13 +686,13 @@ DecisionMaker::latest_route_valid()
 {
   if( !latest_route || !latest_vehicle_state )
   {
-    overview += "no latest route, ";
+    node_status.overview += "no latest route, ";
     return false;
   }
 
   if( !latest_route.value().map )
   {
-    overview += "route is missing map, ";
+    node_status.overview += "route is missing map, ";
     return false;
   }
 
@@ -708,6 +730,9 @@ DecisionMaker::traffic_signals_callback( const adore_ros2_msgs::msg::TrafficSign
       stopping_points.emplace_back( signal.x, signal.y );
     }
   }
+
+  latest_traffic_signals = msg;
+
 }
 
 void
@@ -898,18 +923,18 @@ DecisionMaker::debug_info(bool print)
 
   if ( !allow_remote_participant_detection )
   {
-    overview += "Ignoring remotely detected participants, ";
+    node_status.overview += "Ignoring remotely detected participants, ";
   }
 
   if ( !allow_remote_trajectory_execution )
   {
-    overview += "ignoring remote trajectories, ";
+    node_status.overview += "ignoring remote trajectories, ";
   }
   
   if( latest_reference_trajectory )
   {
     requirements_string += "Reference trajectory available \n";
-    overview += "Reference trajectory available, ";
+    node_status.overview += "Reference trajectory available, ";
   }
   else
   {
@@ -922,13 +947,13 @@ DecisionMaker::debug_info(bool print)
 
     if ( !latest_route.value().map )
     {
-      overview += "Map problems in route, ";
+      node_status.overview += "Map problems in route, ";
     }
   }
   else
   {
     requirements_string += "No Route available.\n";
-    overview += "No Route available, ";
+    node_status.overview += "No Route available, ";
   }
 
   if( latest_local_map )
@@ -938,7 +963,7 @@ DecisionMaker::debug_info(bool print)
   else
   {
     requirements_string += "No Local map data available.\n";
-    overview += "No Local map data available, ";
+    node_status.overview += "No Local map data available, ";
   }
 
 
@@ -949,12 +974,12 @@ DecisionMaker::debug_info(bool print)
   else
   {
     requirements_string += "No Vehicle state available.\n";
-    overview += "No Vehicle state available, ";
+    node_status.overview += "No Vehicle state available, ";
   }
 
   if( latest_safety_corridor )
   {
-    overview += "Safety Corridor message received, ";
+    node_status.overview += "Safety Corridor message received, ";
     requirements_string += "Safety Corridor message received.\n";
   }
   else
@@ -968,49 +993,49 @@ DecisionMaker::debug_info(bool print)
   {
     case FOLLOW_REFERENCE:
     {
-      overview += "FOLLOW_REFERENCE, ";
+      node_status.overview += "FOLLOW_REFERENCE, ";
       state_string = "FOLLOW_REFERECE";
       break;
     }
     case FOLLOW_ROUTE:
     {
-      overview += "FOLLOW ROUTE, ";
+      node_status.overview += "FOLLOW ROUTE, ";
       state_string = "FOLLOW_ROUTE";
       break;
     }
     case SAFETY_CORRIDOR:
     {
-      overview += "SAFETY_CORRIDOR, ";
+      node_status.overview += "SAFETY_CORRIDOR, ";
       state_string = "SAFETY_CORRIDOR";
       break;
     }
     case STANDSTILL:
     {
-      overview += "STANDSTILL, ";
+      node_status.overview += "STANDSTILL, ";
       state_string = "STANDSTILL";
       break;
     }
     case EMERGENCY_STOP:
     {
-      overview += "EMERGENCY, ";
+      node_status.overview += "EMERGENCY, ";
       state_string = "EMERGENCY";
       break;
     }
     case REMOTE_OPERATION:
     {
-      overview += "REMOTE_OPERATIONS, ";
+      node_status.overview += "REMOTE_OPERATIONS, ";
       state_string = "REMOTE OPERATIONS";
       break;
     }
     case REQUESTING_ASSISTANCE:
     {
-      overview += "REQUESTING ASSISTANCE, ";
+      node_status.overview += "REQUESTING ASSISTANCE, ";
       state_string = "REQUESTING ASSISTANCE";
       break;
     }
     default:
     {
-      overview += "UNKNOWN, ";
+      node_status.overview += "UNKNOWN, ";
       state_string = "UNKNOWN";
       break;
     }
