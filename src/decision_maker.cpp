@@ -8,8 +8,7 @@ namespace adore
 {
 
 DecisionMaker::DecisionMaker( const rclcpp::NodeOptions& opts ) :
-  rclcpp::Node{ "decision_maker", opts },
-  logger( *this )
+  rclcpp::Node{ "decision_maker", opts }
 
 {
   setup();

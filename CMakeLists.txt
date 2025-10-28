@@ -57,7 +57,7 @@ endfunction()
 # -------------------------
 set(CORE_SRC
   src/decision_maker.cpp
-  src/decision_node.cpp
+  src/decision_publisher.cpp
   src/behaviours.cpp
   src/domain.cpp
   src/conditions.cpp
