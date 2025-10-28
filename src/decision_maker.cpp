@@ -39,10 +39,6 @@ DecisionMaker::setup()
 
   std::string rules_file = declare_parameter( "rules_file", rules_path.string() );
   rules                  = rules::load_rules_yaml( rules_file );
-  logger.add_info( "node_start_time", this->now().seconds() );
-  logger.add_info( "run_delta_time", params.run_delta_time );
-  logger.add_info( "rules_file", rules_file );
-  logger.publish_snapshot_once( *this );
 }
 
 } // namespace adore

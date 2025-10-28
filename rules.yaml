@@ -51,4 +51,4 @@ rules:
     require: []
     forbid:  []
     behaviour: emergency_stop
-    priority: -1000
+    priority: 0
