@@ -27,6 +27,7 @@
 #include "adore_ros2_msgs/msg/caution_zone.hpp"
 #include "adore_ros2_msgs/msg/goal_point.hpp"
 #include "adore_ros2_msgs/msg/map.hpp"
+#include "adore_ros2_msgs/msg/node_status.hpp"
 #include "adore_ros2_msgs/msg/route.hpp"
 #include "adore_ros2_msgs/msg/safety_corridor.hpp"
 #include "adore_ros2_msgs/msg/state_monitor.hpp"
@@ -46,6 +47,7 @@
 #include "std_msgs/msg/bool.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "std_msgs/msg/float64.hpp"
+#include "adore_node_status.hpp"
 
 namespace adore
 {
@@ -96,7 +98,7 @@ private:
   rclcpp::Publisher<adore_ros2_msgs::msg::AssistanceRequest>::SharedPtr  publisher_request_assistance_remote_operations;
   rclcpp::Publisher<adore_ros2_msgs::msg::CautionZone>::SharedPtr        publisher_caution_zones;
   rclcpp::Publisher<adore_ros2_msgs::msg::TrafficParticipant>::SharedPtr publisher_traffic_participant;
-  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_overview;
+  rclcpp::Publisher<adore_ros2_msgs::msg::NodeStatus>::SharedPtr publisher_node_status;
 
   // SUBSCRIBERS
   rclcpp::Subscription<adore_ros2_msgs::msg::Route>::SharedPtr                 subscriber_route;
@@ -176,7 +178,8 @@ private:
   bool allow_remote_participant_detection = true;
   bool allow_remote_trajectory_execution = true;
   bool only_suggestion = false;
-  std::string overview;
+
+  status::NodeStatus node_status;
 
   // OptiNLC related members
   planner::OptiNLCTrajectoryOptimizer opti_nlc_trajectory_optimizer;
@@ -207,6 +210,7 @@ private:
   void publish_traffic_participant();
 
   math::Point2d goal;
+  adore_ros2_msgs::msg::TrafficSignals latest_traffic_signals;
 
   std::unordered_map<std::string, math::Polygon2d> caution_zones;
 
