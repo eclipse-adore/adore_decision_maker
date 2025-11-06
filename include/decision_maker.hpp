@@ -37,8 +37,11 @@ private:
   behaviours::BehaviourMap behaviour_map = behaviours::make_behaviour_map();
   rules::Rules             rules;
 
-  Domain            domain;
+  // subscribers and latest sensor snapshots are stored in domain
+  Domain domain;
+  // publishers
   DecisionPublisher publisher;
+
 
   DecisionParams               params;
   rclcpp::TimerBase::SharedPtr timer;
