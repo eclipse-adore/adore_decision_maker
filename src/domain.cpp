@@ -49,6 +49,10 @@ Domain::setup( rclcpp::Node& n, const DomainParams& params, const InTopics& topi
 
   add_subscription<msg::TrafficSignal>( n, topics.traffic_signals,
                                         [&]( const msg::TrafficSignal& msg ) { traffic_signals[msg.signal_group_id] = msg; } );
+
+  // subscribe to assistance request
+  add_subscription<msg::AssistanceRequest>( n, topics.assistance_request,
+                                            [&]( const msg::AssistanceRequest& msg ) { sent_assistance_request = msg.assistance_needed; } );
 }
 
 

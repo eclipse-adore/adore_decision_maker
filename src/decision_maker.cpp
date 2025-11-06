@@ -22,7 +22,7 @@ DecisionMaker::run()
   auto     condition_state = conditions::evaluate_conditions( domain, params.condition_params, condition_map );
   auto     behaviour       = rules::choose_behaviour( condition_state, rules );
   Decision decision        = behaviour_map[behaviour.value()]( domain, params.planning_params );
-  publisher.publish( decision );
+  publisher.publish( *this, decision );
 }
 
 void

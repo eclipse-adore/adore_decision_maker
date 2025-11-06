@@ -106,6 +106,7 @@ follow_assistance( const Domain& domain, PlanningParams& planning_tools )
   out.trajectory = std::move( trajectory );
 
   out.traffic_participant = make_default_participant( domain, planning_tools );
+  out.assistance_request  = false;
   return out;
 }
 
@@ -135,7 +136,7 @@ request_assistance( const Domain& domain, PlanningParams& planning_tools )
 {
 
   Decision out            = minimum_risk( domain, planning_tools );
-  out.request_assistance  = true;
+  out.assistance_request  = true;
   out.trajectory->label   = "Request Assistance";
   out.traffic_participant = make_default_participant( domain, planning_tools );
   return out;

@@ -30,6 +30,6 @@ struct DecisionPublisher
   rclcpp::Publisher<adore_ros2_msgs::msg::AssistanceRequest>::SharedPtr assistance_publisher;
   rclcpp::Publisher<ParticipantAdapter>::SharedPtr                      traffic_participant_publisher;
   void                                                                  setup( rclcpp::Node& node, const OutTopics& topics );
-  void                                                                  publish( const Decision& decision );
+  void                                                                  publish( const rclcpp::Node& node, const Decision& decision );
 };
 } // namespace adore

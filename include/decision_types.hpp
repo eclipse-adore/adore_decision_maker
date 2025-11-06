@@ -27,7 +27,7 @@ struct Decision
   std::optional<dynamics::Trajectory>         trajectory;
   std::optional<dynamics::TrafficParticipant> traffic_participant;
   std::optional<dynamics::Trajectory>         trajectory_suggestion;
-  bool                                        request_assistance = false;
+  std::optional<bool>                         assistance_request;
 };
 
 struct PlanningParams
@@ -68,6 +68,7 @@ struct InTopics
   std::string waypoints                       = "remote_operation_waypoints";
   std::string suggested_trajectory_acceptance = "suggested_trajectory_accepted";
   std::string caution_zones                   = "caution_zones";
+  std::string assistance_request              = "assistance_request";
 };
 
 struct OutTopics
@@ -93,65 +94,82 @@ inline DecisionParams
 load_params( rclcpp::Node& node )
 {
   DecisionParams params;
+
+  auto& condition_params = params.condition_params;
+  auto& planning_params  = params.planning_params;
+  auto& domain_params    = params.domain_params;
+  auto& in_topics        = params.in_topics;
+  auto& out_topics       = params.out_topics;
+
   params.run_delta_time = node.declare_parameter( "run_delta_time", params.run_delta_time );
   params.debug          = node.declare_parameter( "debug", params.debug );
-  // ---------------------------------------------------------------------------------------------------------
-  // -------------------------------------------- Conditions --------------------------------------------------
-  // ---------------------------------------------------------------------------------------------------------
-  params.condition_params.gps_sigma_ok      = node.declare_parameter( "gps_sigma_ok", params.condition_params.gps_sigma_ok );
-  params.condition_params.min_ref_traj_size = node.declare_parameter( "min_ref_traj_size", 20 );
-  params.condition_params.max_ref_traj_age  = node.declare_parameter( "max_ref_traj_age", params.condition_params.max_ref_traj_age );
-  params.condition_params.min_route_length  = node.declare_parameter( "min_route_length", 10 );
 
   // ---------------------------------------------------------------------------------------------------------
-  // -------------------------------------------- Planning --------------------------------------------------
+  // -------------------------------------------- Conditions -------------------------------------------------
   // ---------------------------------------------------------------------------------------------------------
-  std::vector<std::string> keys   = node.declare_parameter( "planner_settings_keys", std::vector<std::string>() );
-  std::vector<double>      values = node.declare_parameter( "planner_settings_values", std::vector<double>() );
+  condition_params.gps_sigma_ok      = node.declare_parameter( "gps_sigma_ok", condition_params.gps_sigma_ok );
+  condition_params.min_ref_traj_size = node.declare_parameter( "min_ref_traj_size", 20 );
+  condition_params.max_ref_traj_age  = node.declare_parameter( "max_ref_traj_age", condition_params.max_ref_traj_age );
+  condition_params.min_route_length  = node.declare_parameter( "min_route_length", 10 );
+
+  // ---------------------------------------------------------------------------------------------------------
+  // -------------------------------------------- Planning ---------------------------------------------------
+  // ---------------------------------------------------------------------------------------------------------
+  std::vector<std::string> keys   = node.declare_parameter( "planner_settings_keys", std::vector<std::string>{} );
+  std::vector<double>      values = node.declare_parameter( "planner_settings_values", std::vector<double>{} );
+
   if( keys.size() == values.size() )
   {
-    for( size_t i = 0; i < keys.size(); i++ )
-      params.planning_params.planner_settings[keys[i]] = values[i];
+    for( size_t i = 0; i < keys.size(); ++i )
+    {
+      planning_params.planner_settings[keys[i]] = values[i];
+    }
   }
-  std::string vehicle_model_file          = node.declare_parameter( "vehicle_model_file", "" );
-  params.planning_params.vehicle_model    = std::make_shared<dynamics::PhysicalVehicleModel>( vehicle_model_file, false );
-  params.planning_params.comfort_settings = std::make_shared<dynamics::ComfortSettings>(); // default value comfort settings
-  params.planning_params.planner.set_vehicle_parameters( params.planning_params.vehicle_model->params );
-  params.planning_params.planner.set_comfort_settings( params.planning_params.comfort_settings );
-  params.planning_params.planner.set_parameters( params.planning_params.planner_settings );
-  params.planning_params.v2x_id = node.declare_parameter( "v2x_id", params.planning_params.v2x_id );
+
+  std::string vehicle_model_file = node.declare_parameter( "vehicle_model_file", "" );
+
+  planning_params.vehicle_model    = std::make_shared<dynamics::PhysicalVehicleModel>( vehicle_model_file, false );
+  planning_params.comfort_settings = std::make_shared<dynamics::ComfortSettings>(); // default value comfort settings
+
+  planning_params.planner.set_vehicle_parameters( planning_params.vehicle_model->params );
+  planning_params.planner.set_comfort_settings( planning_params.comfort_settings );
+  planning_params.planner.set_parameters( planning_params.planner_settings );
+
+  planning_params.v2x_id = node.declare_parameter( "v2x_id", planning_params.v2x_id );
 
   // ---------------------------------------------------------------------------------------------------------
-  // -------------------------------------------- Domain ----------------------------------------------------
+  // -------------------------------------------- Domain -----------------------------------------------------
   // ---------------------------------------------------------------------------------------------------------
-  params.domain_params.max_participant_age = node.declare_parameter( "max_participant_age", params.domain_params.max_participant_age );
-  params.domain_params.v2x_id              = params.planning_params.v2x_id;
+  domain_params.max_participant_age = node.declare_parameter( "max_participant_age", domain_params.max_participant_age );
+  domain_params.v2x_id              = planning_params.v2x_id;
 
   // ---------------------------------------------------------------------------------------------------------
   // -------------------------------------------- In Topics --------------------------------------------------
   // ---------------------------------------------------------------------------------------------------------
-  params.in_topics.state                = node.declare_parameter( "topic_vehicle_state_dynamic", params.in_topics.state );
-  params.in_topics.route                = node.declare_parameter( "topic_route", params.in_topics.route );
-  params.in_topics.safety_corridor      = node.declare_parameter( "topic_safety_corridor", params.in_topics.safety_corridor );
-  params.in_topics.suggested_trajectory = node.declare_parameter( "topic_suggested_trajectory", params.in_topics.suggested_trajectory );
-  params.in_topics.reference_trajectory = node.declare_parameter( "topic_reference_trajectory", params.in_topics.reference_trajectory );
-  params.in_topics.sensor_participants  = node.declare_parameter( "topic_traffic_participants", params.in_topics.sensor_participants );
-  params.in_topics.infrastructure_participants     = node.declare_parameter( "topic_infrastructure_participants",
-                                                                             params.in_topics.infrastructure_participants );
-  params.in_topics.traffic_signals                 = node.declare_parameter( "topic_traffic_signals", params.in_topics.traffic_signals );
-  params.in_topics.waypoints                       = node.declare_parameter( "topic_waypoints", params.in_topics.waypoints );
-  params.in_topics.suggested_trajectory_acceptance = node.declare_parameter( "topic_suggested_trajectory_accepted",
-                                                                             params.in_topics.suggested_trajectory_acceptance );
-  params.in_topics.caution_zones                   = node.declare_parameter( "topic_caution_zones", params.in_topics.caution_zones );
+  in_topics.state                           = node.declare_parameter( "topic_vehicle_state_dynamic", in_topics.state );
+  in_topics.route                           = node.declare_parameter( "topic_route", in_topics.route );
+  in_topics.safety_corridor                 = node.declare_parameter( "topic_safety_corridor", in_topics.safety_corridor );
+  in_topics.suggested_trajectory            = node.declare_parameter( "topic_suggested_trajectory", in_topics.suggested_trajectory );
+  in_topics.reference_trajectory            = node.declare_parameter( "topic_reference_trajectory", in_topics.reference_trajectory );
+  in_topics.sensor_participants             = node.declare_parameter( "topic_traffic_participants", in_topics.sensor_participants );
+  in_topics.infrastructure_participants     = node.declare_parameter( "topic_infrastructure_participants",
+                                                                      in_topics.infrastructure_participants );
+  in_topics.traffic_signals                 = node.declare_parameter( "topic_traffic_signals", in_topics.traffic_signals );
+  in_topics.waypoints                       = node.declare_parameter( "topic_waypoints", in_topics.waypoints );
+  in_topics.suggested_trajectory_acceptance = node.declare_parameter( "topic_suggested_trajectory_accepted",
+                                                                      in_topics.suggested_trajectory_acceptance );
+  in_topics.caution_zones                   = node.declare_parameter( "topic_caution_zones", in_topics.caution_zones );
+  in_topics.assistance_request              = node.declare_parameter( "topic_assistance_request", in_topics.assistance_request );
 
   // ---------------------------------------------------------------------------------------------------------
-  // -------------------------------------------- Out Topics --------------------------------------------------
+  // -------------------------------------------- Out Topics -------------------------------------------------
   // ---------------------------------------------------------------------------------------------------------
-  params.out_topics.trajectory_decision   = node.declare_parameter( "topic_trajectory_decision", params.out_topics.trajectory_decision );
-  params.out_topics.trajectory_suggestion = node.declare_parameter( "topic_trajectory_suggestion",
-                                                                    params.out_topics.trajectory_suggestion );
-  params.out_topics.assistance_request    = node.declare_parameter( "topic_assistance_request", params.out_topics.assistance_request );
-  params.out_topics.traffic_participant   = node.declare_parameter( "topic_traffic_participant", params.out_topics.traffic_participant );
+  out_topics.trajectory_decision   = node.declare_parameter( "topic_trajectory_decision", out_topics.trajectory_decision );
+  out_topics.trajectory_suggestion = node.declare_parameter( "topic_trajectory_suggestion", out_topics.trajectory_suggestion );
+  out_topics.assistance_request    = in_topics.assistance_request;
+  out_topics.traffic_participant   = node.declare_parameter( "topic_traffic_participant", out_topics.traffic_participant );
+
   return params;
 }
+
 } // namespace adore
