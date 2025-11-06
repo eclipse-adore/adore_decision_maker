@@ -185,6 +185,10 @@ You can add new inputs, new conditions, new behaviours, and new rules **without*
 
 Once the condition and behaviour are registered, reference them in `rules.yaml` and adjust `priority`. No code changes needed in the decision loop.
 
+10. **`time_headway`**
+   - Type: `std_msgs::msg::Float64`
+   - Description: Received time headway and updates the planner to use this variable time headway.
+
 ---
 
 ## Publishing & Message Adapters
