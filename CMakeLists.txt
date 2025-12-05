@@ -42,14 +42,13 @@ foreach(pkg IN LISTS PROJECT_DEPS)
   find_package(${pkg} REQUIRED)
 endforeach()
 
-function(configure_target tgt)
+# Common include dirs
+function(configure_target_common tgt)
   target_include_directories(${tgt}
     PRIVATE
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
       $<INSTALL_INTERFACE:include>
   )
-  ament_target_dependencies(${tgt} ${PROJECT_DEPS})
-  target_link_libraries(${tgt} ${YAML_CPP_LIBRARIES})
 endfunction()
 
 # -------------------------
@@ -65,13 +64,24 @@ set(CORE_SRC
 )
 
 # -------------------------
+# Core OBJECT library
+# -------------------------
+add_library(decision_maker_core OBJECT
+  ${CORE_SRC}
+)
+configure_target_common(decision_maker_core)
+ament_target_dependencies(decision_maker_core ${PROJECT_DEPS})
+
+# -------------------------
 # Executable node
 # -------------------------
 add_executable(${PROJECT_NAME}
   src/main.cpp
-  ${CORE_SRC}
+  $<TARGET_OBJECTS:decision_maker_core>
 )
-configure_target(${PROJECT_NAME})
+configure_target_common(${PROJECT_NAME})
+ament_target_dependencies(${PROJECT_NAME} ${PROJECT_DEPS})
+target_link_libraries(${PROJECT_NAME} ${YAML_CPP_LIBRARIES})
 
 install(TARGETS ${PROJECT_NAME}
   DESTINATION lib/${PROJECT_NAME}
@@ -85,10 +95,11 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/rules.yaml
 # Component library (without main)
 # -------------------------
 add_library(${PROJECT_NAME}_component SHARED
-  ${CORE_SRC}
+  $<TARGET_OBJECTS:decision_maker_core>
 )
-configure_target(${PROJECT_NAME}_component)
-
+configure_target_common(${PROJECT_NAME}_component)
+ament_target_dependencies(${PROJECT_NAME}_component ${PROJECT_DEPS})
+target_link_libraries(${PROJECT_NAME}_component ${YAML_CPP_LIBRARIES})
 
 rclcpp_components_register_node(${PROJECT_NAME}_component
   PLUGIN "adore::DecisionMaker"
@@ -109,9 +120,13 @@ if(BUILD_TESTING)
 
   ament_add_gtest(decision_maker_rules_tests
     test/test_rules_selection.cpp
-    ${CORE_SRC}
   )
-  configure_target(decision_maker_rules_tests)
+  configure_target_common(decision_maker_rules_tests)
+  ament_target_dependencies(decision_maker_rules_tests ${PROJECT_DEPS})
+  target_link_libraries(decision_maker_rules_tests
+    ${PROJECT_NAME}_component
+    ${YAML_CPP_LIBRARIES}
+  )
 endif()
 
 ament_package()
