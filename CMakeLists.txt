@@ -83,12 +83,12 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/rules.yaml
 
 # -------------------------
 # Component library (without main)
-# (kept minimal to match original behavior)
 # -------------------------
 add_library(${PROJECT_NAME}_component SHARED
-  src/decision_maker.cpp
+  ${CORE_SRC}
 )
 configure_target(${PROJECT_NAME}_component)
+
 
 rclcpp_components_register_node(${PROJECT_NAME}_component
   PLUGIN "adore::DecisionMaker"

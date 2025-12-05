@@ -61,24 +61,17 @@ follow_route( const Domain& domain, PlanningParams& planning_tools )
 {
   Decision out;
   auto     route_with_signal = domain.route.value();
-  for( auto& p : route_with_signal.center_lane )
+  for( auto& p : route_with_signal.reference_line )
   {
     if( std::any_of( domain.traffic_signals.begin(), domain.traffic_signals.end(), [&]( const auto& s ) {
-      return adore::math::distance_2d( s.second, p.second ) < 3.0 && s.second.state != adore_ros2_msgs::msg::TrafficSignal::GREEN;
-    } ) )
+          return adore::math::distance_2d( s.second, p.second ) < 3.0 && s.second.state != adore_ros2_msgs::msg::TrafficSignal::GREEN;
+        } ) )
       p.second.max_speed = 0;
   }
-  // check for vehcile state
-
-
   auto traj = planning_tools.planner.plan_route_trajectory( route_with_signal, *domain.vehicle_state, domain.traffic_participants );
   traj.adjust_start_time( domain.vehicle_state->time );
-
-
-  traj.label     = "Follow Route";
-  out.trajectory = std::move( traj );
-
-
+  traj.label              = "Follow Route";
+  out.trajectory          = std::move( traj );
   out.traffic_participant = make_default_participant( domain, planning_tools );
   return out;
 }
