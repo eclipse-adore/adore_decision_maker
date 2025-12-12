@@ -9,15 +9,22 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
   <depend>rclcpp</depend>
+  <depend>rclcpp_components</depend>
+  <depend>adore_planning</depend>
+  <depend>ament_index_cpp</depend>
+  <depend>yaml_cpp_vendor</depend>
+  <depend>yaml-cpp</depend>
+
 
   <build_depend>adore_dynamics_conversions</build_depend>
   <build_depend>adore_map_conversions</build_depend>
   <build_depend>adore_math_conversions</build_depend>
-  <build_depend>adore_node_status</build_depend>
   <build_depend>adore_ros2_msgs</build_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
+  <test_depend>ament_cmake_gtest</test_depend>
+
 
   <export>
     <build_type>ament_cmake</build_type>

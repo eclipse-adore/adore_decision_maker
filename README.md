@@ -1,92 +1,189 @@
-# Decision Maker Node
+# Decision Maker — Overview & Developer Guide
 
-## Overview
-The **Decision Maker Node** orchestrates the vehicle's behavior by determining the appropriate operational state based on real-time conditions and data inputs. It ensures safe, efficient, and responsive driving through a state-based decision-making framework, integrating route planning, trajectory generation, and safety corridor management.
+## High‑level Architecture
+
+```mermaid
+
+flowchart TD
+
+  A[ROS 2 Inputs
+  sensors, map, localization,
+  route, suggestions, zones, perception]
+
+  B[Domain Layer
+  subscribe and cache latest data
+  ]
+
+  C[Conditions Layer
+  evaluate named predicates on the domain
+  ]
+
+  D[Rules Layer
+  load yaml rules and check require and forbid then resolve priority
+  ]
+
+  E[Behaviours Layer
+  run the selected behaviour using the domain and params
+  ]
+
+  F[Decision Publisher
+  publish decision to ros 2 topics
+  ]
+
+  G[External Systems
+  controllers, monitors, visualization]
+
+  %% Flow with explicit outputs on edges
+  A --> B
+  B -->|world state snapshot| C
+  C -->|condition state| D
+  D -->|behaviour name| E
+  E -->|decision object| F
+  F -->|ros 2 messages| G
+
+
+
+```
+
+- **Domain (`domain.hpp`)** — owns all ROS 2 subscriptions and the “live” world state derived from them (ego state, route info, safety corridor, suggested trajectories, caution zones, timestamps, etc.). It also holds planning adapters/tools and a small amount of internal flags like `sent_assistance_request`.
+- **Conditions (`conditions.hpp`)** — a *registry* (`ConditionMap`) of boolean predicates `fn(const Domain&, const ConditionParams&) -> bool`. `evaluate_conditions()` runs every predicate and returns a `ConditionState` (map of `name -> true/false`).
+- **Rules (`rules.hpp`)** — declarative mapping from *condition names* to *behaviour names*.
+  Rules are loaded from YAML via `load_rules_yaml(path)` and chosen by `choose_behaviour(state, rules)`.
+- **Behaviours (`behaviours.hpp`)** — a *registry* (`BehaviourMap`) of behaviour functions that do the heavy lifting: produce a plan/trajectory (or alternative outputs) using the data in `Domain`. Typical entries include `follow_route`, `safety_corridor`, `request_assistance`, `minimum_risk`, etc.
+- **DecisionPublisher (`decision_publisher.hpp`)** — wraps the ROS 2 publishers:
+  - `trajectory_publisher` (final decision),
+  - `trajectory_suggestion_publisher` (soft suggestions),
+  - `assistance_publisher`,
+  - `traffic_participant_publisher`.
+  It exposes `setup(node, topics)` and `publish(Decision)`.
+- **DecisionMaker (`decision_maker.hpp/.cpp`)** — the ROS 2 component node that wires everything:
+  1. Declares and reads parameters (`DecisionParams`, including `InTopics`/`OutTopics`, timing like `run_delta_time`, and `rules_file`).
+  2. `domain.setup(node, params.domain_params, params.in_topics)` to subscribe to inputs.
+  3. Builds the registries: `conditions::make_condition_map()` and `behaviours::make_behaviour_map()`.
+  4. Loads rules with `rules::load_rules_yaml(rules_file)`.
+  5. Starts a periodic timer (period = `run_delta_time`) that executes the **main loop** `run()`.
 
 ---
 
-## Features
-- **State-Based Decision Making**:
-  - Seven operational states, prioritized by criticality:
-    1. **Safety Corridor**: Navigate within a safety corridor.
-    2. **Remote Operation**: Operate under remote control.
-    3. **Requesting Assistance**: Handle assistance requests.
-    4. **Follow Route**: Follow a predefined route.
-    5. **Follow Reference**: Track a given trajectory.
-    6. **Standstill**: Halt the vehicle.
-    7. **Emergency Stop**: Stop immediately in critical situations.
-- **Route Planning and Trajectory Generation**:
-  - Supports multiple planners: Lane Following and OptiNLC.
-  - Dynamically generates trajectories based on current conditions.
-- **Safety Corridor Handling**:
-  - Manages trajectories to navigate or escape safety corridors.
-  - Supports both JSON and DENM-based safety corridor formats.
-- **Remote Operation Support**:
-  - Follows waypoints provided during remote operations.
-- **Dynamic Environment Awareness**:
-  - Adapts to real-time updates from maps, routes, and vehicle states.
+## Main Loop (what happens every tick)
+
+1. **Snapshot** the current `Domain` (updated via subscriptions).
+2. **Evaluate Conditions**: `state = evaluate_conditions(domain, params.condition_params, condition_map)`.
+3. **Select Behaviour**: `behaviour_name = choose_behaviour(state, rules)` (highest priority matching rule).
+4. **Run Behaviour**: Call the registered behaviour function, e.g. `behaviour_map.at(behaviour_name)(domain, params.planning_params)`.
+5. **Publish Decision**: `publisher.publish(decision)` (trajectory / suggestion / assistance / participant).
+
+This design keeps logic **data‑driven** (rules YAML) and **open‑ended** (registries for conditions/behaviours).
 
 ---
 
-## Topics
+## Parameters & Topics
 
-### Published Topics
-1. **`trajectory_decision`**
-   - Type: `adore_ros2_msgs::msg::Trajectory`
-   - Description: Publishes the generated trajectory for execution.
+All parameters are declared in `decision_types.hpp` (and friends). Key groups you can expect:
 
-2. **`/MAV/control/RO/path_suggestion`**
-   - Type: `std_msgs::msg::String`
-   - Description: Suggests an alternative trajectory during remote operations.
+- **Input topics (`InTopics`)**: suggested trajectory, acceptance, caution zones, perception, map/lanelet sources, etc.
+- **Output topics (`OutTopics`)**: trajectory decision, trajectory suggestion, assistance request, traffic participant.
+- **Timing**: `run_delta_time` (main loop period).
+- **Files**: `rules_file` pointing to a YAML with rule definitions.
+- **Per‑module params**: `DomainParams`, `ConditionParams`, `PlanningParams`…
 
-3. **`remote_operations_driving_status`**
-   - Type: `adore_ros2_msgs::msg::RemoteOperationsDrivingStatus`
-   - Description: Publishes the status of remote driving operations.
+> The exact names are exposed as ROS 2 parameters (e.g., `topic_trajectory_decision`, `topic_trajectory_suggestion`, `topic_assistance_request`, `topic_traffic_participant`, and so on).
 
-4. **`/MAV/state/modes`**
-   - Type: `std_msgs::msg::String`
-   - Description: Notifies the system of the current driving mode.
 
-5. **`/MAV/state/position`**
-   - Type: `std_msgs::msg::String`
-   - Description: Publishes the vehicle's position during remote operations.
+## Rules YAML format
 
-### Subscribed Topics
-1. **`route`**
-   - Type: `adore_ros2_msgs::msg::Route`
-   - Description: Receives the current planned route.
+The decision rules define when each behaviour should run, based on evaluated conditions.
+They are loaded from a YAML file (e.g., rules.yaml) at startup, and can be swapped out or tuned without recompiling.
 
-2. **`vehicle_state/dynamic`**
-   - Type: `adore_ros2_msgs::msg::VehicleStateDynamic`
-   - Description: Updates the vehicle's dynamic state.
+Each rule entry has:
 
-3. **`local_map`**
-   - Type: `adore_ros2_msgs::msg::Map`
-   - Description: Receives updates on the local map.
+- name — descriptive label for readability/logging.
 
-4. **`/ego_vehicle/v2x/json/rgs`**
-   - Type: `std_msgs::msg::String`
-   - Description: Receives safety corridor data in JSON format.
+- require — list of condition names that must be true for the rule to be eligible.
 
-5. **`/DENM_out`**
-   - Type: `denm_v2_23_denm_pdu_description_msgs::msg::DENM`
-   - Description: Receives safety corridor data in DENM format.
+- forbid — list of condition names that must be false.
 
-6. **`vehicle_state/monitor`**
-   - Type: `adore_ros2_msgs::msg::StateMonitor`
-   - Description: Monitors the vehicle's localization and state.
+- behaviour — the behaviour function to execute when the rule matches.
 
-7. **`/MAV/control/waypoint_suggestion`**
-   - Type: `std_msgs::msg::String`
-   - Description: Receives waypoint suggestions for remote operation.
+- priority — numeric value used to break ties (higher = wins if multiple match).
 
-8. **`planned_trajectory`**
-   - Type: `adore_ros2_msgs::msg::Trajectory`
-   - Description: Receives a pre-planned trajectory to follow.
+The decision loop evaluates conditions → applies rules top-down by priority → runs the winning behaviour.
 
-9. **`traffic_signals`**
-   - Type: `adore_ros2_msgs::msg::TrafficSignals`
-   - Description: Updates traffic signal information.
+## Adding Functionality
+
+You can add new inputs, new conditions, new behaviours, and new rules **without** modifying the decision loop.
+
+### 1) Add a new input (subscription) to `Domain`
+
+1. Extend the state in `Domain` (e.g., add `std::optional<MyMsg>` or a bespoke struct).
+2. In `Domain::setup(node, domain_params, in_topics)`, add a subscription:
+   ```cpp
+   add_subscription<my_msgs::msg::Foo>(
+       node, in_topics.foo_topic,
+       [this](my_msgs::msg::Foo::SharedPtr msg) {
+         this->foo_state = *msg;
+       });
+   ```
+3. If the input needs conversion, add an *adapter* (see existing `adore_dynamics_adapters.hpp` usage).
+
+> Keep subscriptions QoS simple (depth=1) unless you need history; `Domain` is designed to hold the **latest** view.
+
+### 2) Define a new condition
+
+- **Signature:** `bool my_condition(const Domain&, const ConditionParams&)`.
+- Register it in `conditions::make_condition_map()`:
+  ```cpp
+  namespace adore::conditions {
+  bool my_condition(const Domain& d, const ConditionParams& p);
+
+  inline ConditionMap make_condition_map() {
+    return ConditionMap{
+      // existing ones…
+      { "my_condition", &my_condition },
+    };
+  }
+  } // namespace adore::conditions
+  ```
+- Now the condition can be referenced by **name** in the YAML `require`/`forbid` lists.
+
+**Tips** (for deterministic, testable conditions):
+- Use only `Domain`’s cached state; avoid direct ROS calls inside a condition.
+- Keep conditions *pure* (no side‑effects).
+- Return `false` on missing/invalid data; expose separate conditions like `has_foo` for availability.
+
+### 3) Implement a new behaviour
+
+- **Signature:** `Decision my_new_behaviour(const Domain&, const PlanningParams&)` (exact typedef as in `behaviours.hpp`).  
+  It should compute one or more of:
+  - a final **trajectory** (for `trajectory_publisher`),
+  - a **suggested trajectory** (optional),
+  - an **assistance request** (optional),
+  - a **traffic participant** (optional).
+
+- Register it in `behaviours::make_behaviour_map()`:
+  ```cpp
+  namespace adore::behaviours {
+  Decision my_new_behaviour(const Domain&, const PlanningParams&);
+
+  inline BehaviourMap make_behaviour_map() {
+    return BehaviourMap{
+      // existing behaviours…
+      { "my_new_behaviour", &my_new_behaviour },
+    };
+  }
+  } // namespace adore::behaviours
+  ```
+
+- If your behaviour needs a default participant message, reuse the helper:
+  ```cpp
+  auto participant = behaviours::make_default_participant(domain, planning_params);
+  ```
+
+- Behaviours should be **stateless** (preferred). If you need state, store it in `Domain` or a dedicated cache keyed by timestamps from `Domain` to keep the main loop re‑entrant.
+
+### 4) Add or change rules (no C++ changes)
+
+Once the condition and behaviour are registered, reference them in `rules.yaml` and adjust `priority`. No code changes needed in the decision loop.
 
 10. **`time_headway`**
    - Type: `std_msgs::msg::Float64`
@@ -94,45 +191,24 @@ The **Decision Maker Node** orchestrates the vehicle's behavior by determining t
 
 ---
 
-## Parameters
+## Publishing & Message Adapters
 
-| Parameter Name                 | Type      | Default Value | Description                                                   |
-|--------------------------------|-----------|---------------|---------------------------------------------------------------|
-| `debug_mode_active`            | `bool`    | `true`        | Enables or disables debug logging.                           |
-| `use_reference_trajectory_as_is` | `bool`  | `true`        | Uses the reference trajectory directly without optimization. |
-| `set_route_planner`            | `int`     | `0`           | Sets the route planner (0: Lane Following, 1: OptiNLC).      |
-| `dt`                           | `double`  | `0.05`        | Control loop time step (seconds).                            |
-| `remote_operation_speed`       | `double`  | `2.0`         | Speed during remote operation (m/s).                         |
-| `max_acceleration`             | `double`  | `2.0`         | Maximum allowed acceleration (m/s²).                         |
-| `min_acceleration`             | `double`  | `-2.0`        | Minimum allowed acceleration (m/s²).                         |
-| `max_steering`                 | `double`  | `0.7`         | Maximum allowed steering angle (radians).                    |
+`DecisionPublisher::setup(node, topics)` initializes publishers using the out‑topic names from parameters. Call `publish(decision)` to emit whatever is populated in the `Decision` (trajectory, suggestions, assistance, participant).
+
+Messages use adapter typedefs defined in `adore_dynamics_adapters.hpp` (e.g., `TrajectoryAdapter`, `ParticipantAdapter`) to decouple the planner from message schemas. See existing behaviours for examples of producing these adapters.
 
 ---
 
-## States
 
-### State Prioritization
-States are evaluated in the following priority order:
-1. **Safety Corridor**:
-   - Conditions: `VEHICLE_STATE_OK` and `SAFETY_CORRIDOR_PRESENT`.
-   - Generates a trajectory within or escaping the safety corridor.
-2. **Remote Operation**:
-   - Conditions: `VEHICLE_STATE_OK` and `WAYPOINTS_AVAILABLE`.
-   - Follows waypoints during remote control.
-3. **Requesting Assistance**:
-   - Conditions: `VEHICLE_STATE_OK` and `NEED_ASSISTANCE`.
-   - Generates a standstill trajectory and requests assistance.
-4. **Follow Route**:
-   - Conditions: `VEHICLE_STATE_OK`, `ROUTE_AVAILABLE`, and `LOCAL_MAP_AVAILABLE`.
-   - Generates a trajectory to follow a planned route.
-5. **Follow Reference**:
-   - Conditions: `VEHICLE_STATE_OK` and `REFERENCE_TRAJECTORY_VALID`.
-   - Tracks the provided trajectory.
-6. **Standstill**:
-   - Conditions: `VEHICLE_STATE_OK`.
-   - Generates a standstill trajectory.
-7. **Emergency Stop**:
-   - Conditions: None.
-   - Stops the vehicle immediately.
+## Conventions & Style
+
+- **Naming:** Functions and data members use `snake_case`; classes/structs use `PascalCase`.
+- **Modern C++:** Prefer `std::optional`, `std::variant`, `std::chrono`, range‑based loops, and RAII. Avoid raw pointers.
+- **Purity:** Conditions are side‑effect free; behaviours publish only via the returned `Decision` (not directly).
+- **Determinism:** Tie decisions to `Domain` timestamps to avoid flicker. Use priority to resolve ambiguity.
 
 ---
+
+## License
+
+Eclipse Public License 2.0 (EPL‑2.0). See the headers in each file.
