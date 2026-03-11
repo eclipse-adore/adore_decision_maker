@@ -61,6 +61,7 @@ set(CORE_SRC
   src/domain.cpp
   src/conditions.cpp
   src/rules.cpp
+  src/driving_behavior.cpp
 )
 
 # -------------------------

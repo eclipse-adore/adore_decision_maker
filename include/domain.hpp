@@ -34,7 +34,9 @@ namespace adore
 {
 struct Domain
 {
-  void setup( rclcpp::Node& node, const DomainParams& params, const InTopics& topics );
+  Domain();
+
+  // void setup( rclcpp::Node& node, const DomainParams& params, const InTopics& topics );
 
   using CautionZones = std::map<std::string, math::Polygon2d>;
 
@@ -54,14 +56,14 @@ struct Domain
   bool sent_assistance_request = false;
 
 
-  std::vector<rclcpp::SubscriptionBase::SharedPtr> subscribers;
+  // std::vector<rclcpp::SubscriptionBase::SharedPtr> subscribers;
 
-  template<typename MsgT, typename CallbackT>
-  void
-  add_subscription( rclcpp::Node& node, const std::string& topic_name, CallbackT&& callback )
-  {
-    auto sub = node.create_subscription<MsgT>( topic_name, 1, std::forward<CallbackT>( callback ) );
-    subscribers.emplace_back( sub );
-  }
+  // template<typename MsgT, typename CallbackT>
+  // void
+  // add_subscription( rclcpp::Node& node, const std::string& topic_name, CallbackT&& callback )
+  // {
+  //   auto sub = node.create_subscription<MsgT>( topic_name, 1, std::forward<CallbackT>( callback ) );
+  //   subscribers.emplace_back( sub );
+  // }
 };
 } // namespace adore
