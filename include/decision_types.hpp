@@ -132,7 +132,7 @@ load_params( rclcpp::Node& node )
   planning_params.comfort_settings = std::make_shared<dynamics::ComfortSettings>(); // default value comfort settings
 
   planning_params.planner.set_vehicle_parameters( planning_params.vehicle_model->params );
-  planning_params.planner.set_comfort_settings( planning_params.comfort_settings );
+  // planning_params.planner.set_comfort_settings( planning_params.comfort_settings );
   planning_params.planner.set_parameters( planning_params.planner_settings );
 
   planning_params.v2x_id = node.declare_parameter( "v2x_id", planning_params.v2x_id );

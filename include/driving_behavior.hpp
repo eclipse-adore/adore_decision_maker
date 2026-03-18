@@ -24,11 +24,25 @@
 #include "planning/trajectory_planner.hpp"
 
 #include "adore_dynamics_conversions.hpp"
+#include "decision_types.hpp"
+
+#include "driving_conditions.hpp"
+#include "planning/trajectory_planner.hpp"
+#include "planning/planning_helpers.hpp"
 
 namespace adore
 {
 namespace behavior
-{
+{    
+    enum DrivingBehavior
+    {
+        DrivingMission,
+        WaitingForMission,
+        RemoteOperations,
+        MinimumRisk,
+        Emergency,
+    };
+
     struct TrajectoryAndSignals
     {
         adore_ros2_msgs::msg::Trajectory trajectory;
@@ -37,10 +51,32 @@ namespace behavior
 
     TrajectoryAndSignals driving_mission(
                                 planner::TrajectoryPlanner& planner,
-                                const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic,  
-                                const std::optional<map::Route>& route,
+                                const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
+                                const map::Route& route,
                                 const dynamics::TrafficParticipantSet& traffic_participants 
-                            );
+    );
+
+    TrajectoryAndSignals waiting_for_mission(
+                                planner::TrajectoryPlanner& planner,
+                                const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
+                                const dynamics::TrafficParticipantSet& traffic_participants 
+    );
+    
+    TrajectoryAndSignals remote_operations(
+                                planner::TrajectoryPlanner& planner,
+                                const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
+                                const map::Route& route,
+                                const dynamics::TrafficParticipantSet& traffic_participants,
+                                const bool& approved_to_drive_suggested_remote_operations,
+                                const std::optional<dynamics::Trajectory>& suggested_remote_operator_trajectory
+    );
+
+    TrajectoryAndSignals minimum_risk(
+                                planner::TrajectoryPlanner& planner,
+                                const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
+                                const map::Route& route,
+                                const dynamics::TrafficParticipantSet& traffic_participants 
+    );
 
 } // namespace behavior
 } // namespace adore
