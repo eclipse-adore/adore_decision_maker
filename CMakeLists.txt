@@ -8,6 +8,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Build flags
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
   add_compile_options(-O3)
 endif()
