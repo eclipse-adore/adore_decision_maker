@@ -14,54 +14,30 @@
 #pragma once
 #include <array>
 #include <cstdint>
+#include "adore_dynamics_conversions.hpp"
+#include "adore_ros2_msgs/msg/safety_corridor.hpp"
 
-#include "decision_types.hpp"
-#include "domain.hpp"
-
-namespace adore::conditions
+namespace adore
 {
+    namespace conditions
+    {
+        const size_t MININUM_REFERENCE_TRAJECTORY_SIZE = 5;
+        const double MAXIMUM_VEHICLE_STATE_DYNAMIC_AGE_SECONDS = 1.0;
+        const double MAXIMUM_REFERENCE_TRAJECTORY_AGE_SECONDS = 1.0; 
+        const size_t MINIMUM_ROUTE_LENGHTH_METERS = 20; 
+
+        // @TODO, improve these two functions, they are too simple currently
+        bool can_drive_mission( const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic, const double& time_now);
+        bool has_mission( const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic, const std::optional<map::Route>& route );
+        bool need_remote_operator_assitance( const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic, const std::map<std::string, math::Polygon2d>& caution_zones );
+        bool needs_to_avoid_safety_corridor( const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic, const std::optional<adore_ros2_msgs::msg::SafetyCorridor>& safety_corridor );
+        
+        // @TODO, consider making this (inside MAD area or similar instead)
+        bool has_valid_remote_reference_trajectory( const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic, const std::optional<dynamics::Trajectory>& reference_trajectory );
+
+        // @TODO, needs a condition and behavior for inside of validity area, but no reference, so it can used the extended perception
+
+    } // namespace conditions
+} // namespace adore
 
 
-using ConditionFnPtr = bool ( * )( const Domain&, const ConditionParams& );
-using ConditionMap   = std::unordered_map<std::string, ConditionFnPtr>;
-using ConditionState = std::unordered_map<std::string, bool>;
-
-//---------------------------------------------------------------
-// Per‑flag check functions
-//---------------------------------------------------------------
-
-bool state_ok( const Domain& domain, const ConditionParams& params );
-bool safety_corridor_present( const Domain& domain, const ConditionParams& params );
-bool waypoints_available( const Domain& domain, const ConditionParams& params );
-bool reference_traj_valid( const Domain& domain, const ConditionParams& params );
-bool route_available( const Domain& domain, const ConditionParams& params );
-bool need_assistance( const Domain& domain, const ConditionParams& params );
-bool sent_assistance_request( const Domain& domain, const ConditionParams& params );
-bool suggested_trajectory_accepted( const Domain& domain, const ConditionParams& params );
-
-inline ConditionMap
-make_condition_map()
-{
-  return {
-    {                      "state_ok",                      state_ok },
-    {       "safety_corridor_present",       safety_corridor_present },
-    {           "waypoints_available",           waypoints_available },
-    {          "reference_traj_valid",          reference_traj_valid },
-    {               "route_available",               route_available },
-    {               "need_assistance",               need_assistance },
-    {       "sent_assistance_request",       sent_assistance_request },
-    { "suggested_trajectory_accepted", suggested_trajectory_accepted },
-  };
-}
-
-inline ConditionState
-evaluate_conditions( const Domain& domain, const ConditionParams& params, const ConditionMap& condition_map )
-{
-  ConditionState state;
-  for( const auto& [name, fn] : condition_map )
-    state[name] = fn( domain, params );
-  return state;
-}
-
-
-} // namespace adore::conditions

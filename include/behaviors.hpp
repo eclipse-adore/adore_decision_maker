@@ -26,9 +26,7 @@
 #include "planning/trajectory_planner.hpp"
 
 #include "adore_dynamics_conversions.hpp"
-#include "decision_types.hpp"
 
-#include "driving_conditions.hpp"
 #include "planning/trajectory_planner.hpp"
 #include "planning/planning_helpers.hpp"
 
@@ -36,15 +34,6 @@ namespace adore
 {
 namespace behavior
 {    
-    enum DrivingBehavior
-    {
-        DrivingMission,
-        WaitingForMission,
-        RemoteOperations,
-        MinimumRisk,
-        Emergency,
-    };
-
     struct TrajectoryAndSignals
     {
         adore_ros2_msgs::msg::Trajectory trajectory;

@@ -56,13 +56,8 @@ endfunction()
 # -------------------------
 set(CORE_SRC
   src/decision_maker.cpp
-  src/decision_publisher.cpp
-  src/behaviours.cpp
-  src/domain.cpp
+  src/behaviors.cpp
   src/conditions.cpp
-  src/rules.cpp
-  src/driving_behavior.cpp
-  src/driving_conditions.cpp
 )
 
 # -------------------------

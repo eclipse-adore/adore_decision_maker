@@ -104,37 +104,6 @@ void DecisionMaker::timer_callback()
   publisher_v2x_traffic_participant->publish( make_default_participant() );
 
   // @TODO, add a cleanup step, that removes old caution zones and old suggested trajectories, old safety corridors
-
-
-
-// dynamics::TrafficParticipant
-// make_default_participant( const Domain& domain, const PlanningParams& planning_tools )
-// {
-//   dynamics::TrafficParticipant participant;
-//   if( domain.vehicle_state )
-//     participant.state = domain.vehicle_state.value();
-//   if( domain.route )
-//   {
-//     participant.goal_point = domain.route->destination;
-//     participant.route      = domain.route.value();
-//   }
-//   participant.id                  = planning_tools.v2x_id;
-//   participant.v2x_id              = planning_tools.v2x_id;
-//   participant.classification      = dynamics::CAR;
-//   participant.physical_parameters = planning_tools.vehicle_model->params;
-//   return participant;
-// }
- 
-
-
-
-
-
-  
-  // auto     condition_state = conditions::evaluate_conditions( domain, params.condition_params, condition_map );
-  // auto     behaviour       = rules::choose_behaviour( condition_state, rules );
-  // Decision decision        = behaviour_map[behaviour.value()]( domain, params.planning_params );
-  // publisher.publish( *this, decision );
 }
 
 behavior::TrajectoryAndSignals DecisionMaker::choose_and_plan_driving_behavior()
@@ -216,70 +185,6 @@ behavior::TrajectoryAndSignals DecisionMaker::choose_and_plan_driving_behavior()
 
   return behavior::emergency(planner, latest_vehicle_state_dynamic);
 }
-
-// behavior::TrajectoryAndSignals DecisionMaker::plan_based_on_driving_behavior(const behavior::DrivingBehavior& driving_mode)
-// {
-//   // There is a bunch of access to the optional values directly here, however, due to the previous checks, this should be safe
-
-//   switch ( driving_mode )
-//   {
-//     case behavior::DrivingBehavior::DrivingMission:
-//     {
-//       return behavior::driving_mission(
-//                                   planner,
-//                                   latest_vehicle_state_dynamic.value(),
-//                                   latest_route.value(),
-//                                   traffic_participants
-//                                 );
-//     }
-//     case behavior::DrivingBehavior::WaitingForMission:
-//     {
-//       return behavior::waiting_for_mission(
-//                                   planner,
-//                                   latest_vehicle_state_dynamic.value(),
-//                                   traffic_participants
-//                                 );
-
-//     }
-//     case behavior::DrivingBehavior::RemoteOperations:
-//     {
-//       return behavior::remote_operations(
-//                                   planner,
-//                                   latest_vehicle_state_dynamic.value(),
-//                                   latest_route.value(),
-//                                   traffic_participants
-//       );
-//     }
-//     case behavior::DrivingBehavior::Emergency:
-//     {
-      
-//     }
-//   }
-// }
-
-// void
-// DecisionMaker::run()
-// {
-//   auto     condition_state = conditions::evaluate_conditions( domain, params.condition_params, condition_map );
-//   auto     behaviour       = rules::choose_behaviour( condition_state, rules );
-//   Decision decision        = behaviour_map[behaviour.value()]( domain, params.planning_params );
-//   publisher.publish( *this, decision );
-// }
-
-// void
-// DecisionMaker::setup()
-// {
-//   params = load_params( *this );
-
-//   timer = create_wall_timer( std::chrono::milliseconds( static_cast<int>( params.run_delta_time * 1000 ) ),
-//                              std::bind( &DecisionMaker::run, this ) );
-
-//   const std::string           pkg        = ament_index_cpp::get_package_share_directory( "decision_maker" );
-//   const std::filesystem::path rules_path = std::filesystem::path( pkg ) / "config" / "rules.yaml";
-
-//   std::string rules_file = declare_parameter( "rules_file", rules_path.string() );
-//   rules                  = rules::load_rules_yaml( rules_file );
-// }
 
 adore_ros2_msgs::msg::TrafficParticipant DecisionMaker::make_default_participant()
 {
