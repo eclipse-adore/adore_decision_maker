@@ -8,27 +8,39 @@ namespace behavior
                                 planner::TrajectoryPlanner& planner,
                                 const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
                                 const map::Route& route,
-                                const dynamics::TrafficParticipantSet& traffic_participants 
-                            )
+                                const dynamics::TrafficParticipantSet& traffic_participants,
+                                const std::map<size_t, adore_ros2_msgs::msg::TrafficSignal>& traffic_signals
+                           )
     {
         // Go through route, and update speed at points based on traffic signal positions
         auto route_with_signal = route;
         for( auto& p : route_with_signal.reference_line )
         {
-            // if( std::any_of( domain.traffic_signals.begin(), domain.traffic_signals.end(), [&]( const auto& s ) {
-            //     return adore::math::distance_2d( s.second, p.second ) < 3.0 && s.second.state != adore_ros2_msgs::msg::TrafficSignal::GREEN;
-            //     } ) )
-            // p.second.max_speed = 0;
+            if( std::any_of( traffic_signals.begin(), traffic_signals.end(), [&]( const auto& s ) {
+                return adore::math::distance_2d( s.second, p.second ) < 3.0 && s.second.state != adore_ros2_msgs::msg::TrafficSignal::GREEN;
+                } ) )
+            p.second.max_speed = 0;
         }
 
         dynamics::Trajectory trajectory = planner.plan_route_trajectory( route_with_signal, vehicle_state_dynamic, traffic_participants );
-        // auto traj = planning_tools.planner.plan_route_trajectory( route_with_signal, vehicle_state_dynamic, traffic_participants );
         trajectory.adjust_start_time( vehicle_state_dynamic.time );
-        trajectory.label              = "Follow Route";
-        // out.traffic_participant = make_default_participant( domain, planning_tools );
+        trajectory.label              = "driving mission";
 
         TrajectoryAndSignals trajectory_and_signal;
         trajectory_and_signal.trajectory = dynamics::conversions::to_ros_msg( trajectory );
+
+        return trajectory_and_signal;
+    }
+
+    TrajectoryAndSignals driving_mission_following_reference(
+                            planner::TrajectoryPlanner& planner,
+                            const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
+                            const dynamics::Trajectory& reference_trajectory 
+    )
+    {
+        TrajectoryAndSignals trajectory_and_signal;
+        trajectory_and_signal.trajectory = dynamics::conversions::to_ros_msg( reference_trajectory );
+        trajectory_and_signal.trajectory.label = "driving mission (following reference)";
 
         return trajectory_and_signal;
     }
@@ -40,7 +52,7 @@ namespace behavior
                             )
     {
         dynamics::Trajectory trajectory;
-        trajectory.label = "Standstill";
+        trajectory.label = "waiting for mission";
 
         trajectory.states.push_back( vehicle_state_dynamic );
 
@@ -103,6 +115,47 @@ namespace behavior
 
         TrajectoryAndSignals trajectory_and_signals;
         trajectory_and_signals.trajectory = dynamics::conversions::to_ros_msg(planned_trajectory);
+
+        return trajectory_and_signals;
+    }
+
+    TrajectoryAndSignals avoiding_safety_corridor(
+                            planner::TrajectoryPlanner& planner,
+                            const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
+                            const dynamics::TrafficParticipantSet& traffic_participants, 
+                            const adore_ros2_msgs::msg::SafetyCorridor& safety_corridor
+    )
+    {
+        auto     right_forward_points = planner::filter_points_in_front( safety_corridor.right_border, vehicle_state_dynamic );
+        auto     safety_waypoints     = planner::shift_points_right( right_forward_points, planner.get_physical_vehicle_parameters().body_width );
+        double   target_speed         = planner::is_point_to_right_of_line( vehicle_state_dynamic, right_forward_points ) ? 0 : 2.0;
+
+        auto planned_trajectory = planner::waypoints_to_trajectory( vehicle_state_dynamic, safety_waypoints, traffic_participants,
+                                                                    dynamics::PhysicalVehicleModel(planner.get_physical_vehicle_parameters()), target_speed );
+
+        planned_trajectory = planner.optimize_trajectory( vehicle_state_dynamic, planned_trajectory );
+
+        planned_trajectory.label = "avoiding safety corridor";
+
+        TrajectoryAndSignals trajectory_and_signals;
+        trajectory_and_signals.trajectory = dynamics::conversions::to_ros_msg(planned_trajectory);
+
+        return trajectory_and_signals;
+    }
+
+    TrajectoryAndSignals emergency(
+                            planner::TrajectoryPlanner& planner,
+                            const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic  
+    )
+    {
+        dynamics::Trajectory emergency_stop_trajectory;
+        if( vehicle_state_dynamic.has_value() )
+            emergency_stop_trajectory.states.push_back( vehicle_state_dynamic.value() );
+
+        emergency_stop_trajectory.label = "emergency stop";
+
+        TrajectoryAndSignals trajectory_and_signals;
+        trajectory_and_signals.trajectory = dynamics::conversions::to_ros_msg(emergency_stop_trajectory);
 
         return trajectory_and_signals;
     }

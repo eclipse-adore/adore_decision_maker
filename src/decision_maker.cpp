@@ -49,35 +49,6 @@ void DecisionMaker::load_parameters()
   planner.set_vehicle_parameters( vehicle_model->params );
   planner.set_comfort_settings( comfort_settings );
   planner.set_parameters( planner_settings );
-
-  // planning_params.v2x_id = node.declare_parameter( "v2x_id", planning_params.v2x_id );
-
-
-
-  // std::cerr << "error 1" << std::endl;
-
-  // std::string planner_parameters_file = declare_parameter( "planner_parameters_file", "" );
-  // std::cerr << "path : " << planner_parameters_file << std::endl;
-  // std::cerr << "error 1.1" << std::endl;
-  // get_parameter<std::string>( "planner_parameters_file", planner_parameters_file );
-  // std::cerr << "error 1.2" << std::endl;
-
-  // planner.set_parameters_from_file(planner_parameters_file);
-  // std::cerr << "error 2" << std::endl;
-
-  // std::string physical_vehicle_parameters_file = declare_parameter( "physical_vehicle_parameters_file", "" );
-  // physical_vehicle_parameters = dynamics::PhysicalVehicleParameters(physical_vehicle_parameters_file); 
-  // std::cerr << "error 3" << std::endl;
-
-  // std::string comfort_settings_file = declare_parameter( "comfort_settings_file", "" );
-  // comfort_settings = std::make_shared<dynamics::ComfortSettings>(comfort_settings_file); 
-  // std::cerr << "error 4" << std::endl;
-
-  // planner.set_vehicle_parameters( physical_vehicle_parameters );
-  // planner.set_comfort_settings( comfort_settings );
-  // std::cerr << "error 5" << std::endl;
-
-  // params = load_params( *this );
 }
 
 void DecisionMaker::setup_subscribers()
@@ -90,6 +61,15 @@ void DecisionMaker::setup_subscribers()
 
   subscriber_route = create_subscription<adore_ros2_msgs::msg::Route>( "route", 1,
                                       [this](const adore_ros2_msgs::msg::Route& msg) {  latest_route = map::conversions::to_cpp_type(msg); });
+
+  subscriber_reference_trajectory = create_subscription<adore_ros2_msgs::msg::Trajectory>( "reference_trajectory", 1,
+                                      [this](const adore_ros2_msgs::msg::Trajectory& msg) { latest_reference_trajectory = dynamics::conversions::to_cpp_type(msg); });
+
+  subscriber_traffic_signal = create_subscription<adore_ros2_msgs::msg::TrafficSignal>( "traffic_signals", 1,
+                                      [this](const adore_ros2_msgs::msg::TrafficSignal& msg) { traffic_signals[msg.signal_group_id] = msg; });
+
+  subscriber_safety_corridor = create_subscription<adore_ros2_msgs::msg::SafetyCorridor>( "safety_corridor", 1,
+                                      [this](const adore_ros2_msgs::msg::SafetyCorridor& msg) { latest_safety_corridor = msg; });
 
   subscriber_caution_zones = create_subscription<adore_ros2_msgs::msg::CautionZone>( "caution_zones", 1,
                                       [this](const adore_ros2_msgs::msg::CautionZone& msg) {  caution_zones[msg.label] = math::conversions::to_cpp_type(msg.polygon); });
@@ -111,7 +91,7 @@ void DecisionMaker::setup_subscribers()
 void DecisionMaker::setup_publishers()
 {
   publisher_trajectory_decision = create_publisher<adore_ros2_msgs::msg::Trajectory>( "trajectory_decision", 1 );
-  publisher_traffic_participant = create_publisher<adore_ros2_msgs::msg::TrafficParticipant>( "traffic_participant", 1 );
+  publisher_v2x_traffic_participant = create_publisher<adore_ros2_msgs::msg::TrafficParticipant>( "v2x_traffic_participant", 1 );
 }
 
 void DecisionMaker::timer_callback()
@@ -119,10 +99,15 @@ void DecisionMaker::timer_callback()
   auto trajectory_and_signals = choose_and_plan_driving_behavior();
   publisher_trajectory_decision->publish(trajectory_and_signals.trajectory);
 
-  publisher_traffic_participant->publish( make_default_participant() );
+  // @TODO, add publisher and behavior for signals
+
+  publisher_v2x_traffic_participant->publish( make_default_participant() );
+
+  // @TODO, add a cleanup step, that removes old caution zones and old suggested trajectories, old safety corridors
 
 
-//  dynamics::TrafficParticipant
+
+// dynamics::TrafficParticipant
 // make_default_participant( const Domain& domain, const PlanningParams& planning_tools )
 // {
 //   dynamics::TrafficParticipant participant;
@@ -144,7 +129,7 @@ void DecisionMaker::timer_callback()
 
 
 
-  // @TODO, add a cleanup step, that removes old caution zones and old suggested trajectories
+
   
   // auto     condition_state = conditions::evaluate_conditions( domain, params.condition_params, condition_map );
   // auto     behaviour       = rules::choose_behaviour( condition_state, rules );
@@ -156,13 +141,28 @@ behavior::TrajectoryAndSignals DecisionMaker::choose_and_plan_driving_behavior()
 {
   double time_now = now().seconds();
 
-  bool state_ok = conditions::state_ok(latest_vehicle_state_dynamic, time_now);
-  bool route_ok = conditions::route_ok(latest_vehicle_state_dynamic, latest_route);
+  bool can_drive_mission = conditions::can_drive_mission(latest_vehicle_state_dynamic, time_now);
+  bool has_mission = conditions::has_mission(latest_vehicle_state_dynamic, latest_route);
   bool needs_remote_operator_assistance = conditions::need_remote_operator_assitance(latest_vehicle_state_dynamic, caution_zones);
+  bool needs_to_avoid_safety_corridor = conditions::needs_to_avoid_safety_corridor(latest_vehicle_state_dynamic, latest_safety_corridor);
+  bool has_valid_reference_trajectory = conditions::has_valid_remote_reference_trajectory(latest_vehicle_state_dynamic, latest_reference_trajectory);
 
   if (
-      state_ok &&
-      route_ok &&
+    can_drive_mission &&
+    needs_to_avoid_safety_corridor
+  )
+  {
+    return behavior::avoiding_safety_corridor(
+                                planner,
+                                latest_vehicle_state_dynamic.value(),
+                                traffic_participants,
+                                latest_safety_corridor.value()
+    );
+  }
+
+  if (
+      can_drive_mission &&
+      has_mission &&
       needs_remote_operator_assistance
   )
   {
@@ -177,20 +177,34 @@ behavior::TrajectoryAndSignals DecisionMaker::choose_and_plan_driving_behavior()
   }
 
   if (
-      state_ok &&
-      route_ok
+    can_drive_mission &&
+    has_mission &&
+    has_valid_reference_trajectory
+  )
+  {
+    return behavior::driving_mission_following_reference(
+                            planner,
+                            latest_vehicle_state_dynamic.value(),
+                            latest_reference_trajectory.value()
+                          );
+  }
+
+  if (
+      can_drive_mission &&
+      has_mission
   )
   {
     return behavior::driving_mission(
                                 planner,
                                 latest_vehicle_state_dynamic.value(),
                                 latest_route.value(),
-                                traffic_participants
+                                traffic_participants,
+                                traffic_signals
                               );
   }
 
   if ( 
-      state_ok
+      can_drive_mission
   )
   {
     return behavior::waiting_for_mission(
@@ -200,8 +214,7 @@ behavior::TrajectoryAndSignals DecisionMaker::choose_and_plan_driving_behavior()
                               );
   }
 
-  // @TODO Needs to be emergency
-  return behavior::TrajectoryAndSignals {};
+  return behavior::emergency(planner, latest_vehicle_state_dynamic);
 }
 
 // behavior::TrajectoryAndSignals DecisionMaker::plan_based_on_driving_behavior(const behavior::DrivingBehavior& driving_mode)

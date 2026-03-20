@@ -13,7 +13,6 @@
 
 #pragma once
 #include "adore_dynamics_adapters.hpp"
-#include "adore_ros2_msgs/msg/driving_behavior.hpp"
 
 // #include "behaviours.hpp"
 // #include "conditions.hpp"
@@ -47,7 +46,15 @@ private:
   // Driving subscribers
   rclcpp::Subscription<adore_ros2_msgs::msg::VehicleStateDynamic>::SharedPtr subscriber_vehicle_state_dynamic;
   rclcpp::Subscription<adore_ros2_msgs::msg::Route>::SharedPtr subscriber_route;
+
+  // Vehicle subscribers
+  rclcpp::Subscription<adore_ros2_msgs::msg::VehicleInfo>::SharedPtr subscriber_vehicle_info;
  
+  // World subscribers
+  rclcpp::Subscription<adore_ros2_msgs::msg::TrafficSignal>::SharedPtr subscriber_traffic_signal;
+  rclcpp::Subscription<adore_ros2_msgs::msg::SafetyCorridor>::SharedPtr subscriber_safety_corridor;
+  rclcpp::Subscription<adore_ros2_msgs::msg::Trajectory>::SharedPtr subscriber_reference_trajectory;
+
   // Remote operations subscribers
   rclcpp::Subscription<adore_ros2_msgs::msg::CautionZone>::SharedPtr subscriber_caution_zones;
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr subscriber_remote_operator_drive_approval;
@@ -59,8 +66,11 @@ private:
 
   int v2x_id = 0;
 
+  std::optional<adore_ros2_msgs::msg::VehicleInfo> latest_vehicle_info;
+
   rclcpp::Publisher<adore_ros2_msgs::msg::Trajectory>::SharedPtr publisher_trajectory_decision;
-  rclcpp::Publisher<adore_ros2_msgs::msg::TrafficParticipant>::SharedPtr publisher_traffic_participant;
+  rclcpp::Publisher<adore_ros2_msgs::msg::TrafficParticipant>::SharedPtr publisher_v2x_traffic_participant;
+
   
   // Planning
   planner::TrajectoryPlanner planner; // @TODO Think most of these can be removed
@@ -70,8 +80,11 @@ private:
   // Domain
   std::optional<dynamics::VehicleStateDynamic> latest_vehicle_state_dynamic;
   std::optional<map::Route> latest_route;
+  std::map<size_t, adore_ros2_msgs::msg::TrafficSignal> traffic_signals;
   std::optional<dynamics::Trajectory> suggested_remote_operator_trajectory; // A trajectory received by a remote operator
   bool remote_operator_drive_approval = false;
+  std::optional<adore_ros2_msgs::msg::SafetyCorridor> latest_safety_corridor;
+  std::optional<dynamics::Trajectory> latest_reference_trajectory;
 
   dynamics::TrafficParticipantSet traffic_participants;
   std::map<std::string, math::Polygon2d> caution_zones;

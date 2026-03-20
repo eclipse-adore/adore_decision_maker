@@ -17,14 +17,16 @@ namespace adore
 {
 namespace conditions
 {
-bool state_ok( 
+
+
+bool can_drive_mission( 
                 const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic, 
                 const double& time_now )
 {
     if ( !vehicle_state_dynamic.has_value() )
         return false;
 
-    if ( time_now - vehicle_state_dynamic.value().time > 1 ) // If the message is more than one second old 
+    if ( time_now - vehicle_state_dynamic.value().time > MAXIMUM_VEHICLE_STATE_DYNAMIC_AGE_SECONDS ) // If the message is more than one second old 
         return false;
 
     // @TODO, add covarianve of estimate
@@ -32,7 +34,7 @@ bool state_ok(
     return true;
 }
 
-bool route_ok( 
+bool has_mission( 
                 const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic, 
                 const std::optional<map::Route>& route 
             )
@@ -41,13 +43,13 @@ bool route_ok(
         return false;
 
     double remaining = route->get_length() - route->get_s( *vehicle_state_dynamic );
-    size_t min_route_length  = 20;  // [m]
-    return remaining > min_route_length;
+    return remaining > MINIMUM_ROUTE_LENGHTH_METERS;
 }
 
 bool need_remote_operator_assitance( 
                                         const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic, 
-                                        const std::map<std::string, math::Polygon2d>& caution_zones )
+                                        const std::map<std::string, math::Polygon2d>& caution_zones 
+                                    )
 {
     if ( !vehicle_state_dynamic.has_value() )
         return false;
@@ -56,6 +58,34 @@ bool need_remote_operator_assitance(
     return std::any_of( caution_zones.begin(), caution_zones.end(),
                         [&]( const auto& zone ) { return zone.second.point_inside( *vehicle_state_dynamic ); } );
 }
+
+bool needs_to_avoid_safety_corridor(
+                                        const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic, 
+                                        const std::optional<adore_ros2_msgs::msg::SafetyCorridor>& safety_corridor 
+)
+{
+    if ( !vehicle_state_dynamic.has_value() || !safety_corridor.has_value() )
+        return false;
+
+    // @TODO, needs to do a check if it is inside of the safety corridor
+
+    return true;
+}
+
+bool has_valid_remote_reference_trajectory( 
+                                        const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic,
+                                        const std::optional<dynamics::Trajectory>& reference_trajectory )
+{
+    if( !vehicle_state_dynamic.has_value() || !reference_trajectory.has_value() )
+        return false;
+
+    if( reference_trajectory.value().states.size() < MININUM_REFERENCE_TRAJECTORY_SIZE )
+        return false;
+
+    double age = vehicle_state_dynamic.value().time - reference_trajectory.value().states.front().time;
+    return age <= MAXIMUM_REFERENCE_TRAJECTORY_AGE_SECONDS;
+}
+
 
 // bool
 // safety_corridor_present( const Domain& d, const ConditionParams& )

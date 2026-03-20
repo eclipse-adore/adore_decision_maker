@@ -19,6 +19,8 @@
 
 #include "adore_ros2_msgs/msg/trajectory.hpp"
 #include "adore_ros2_msgs/msg/vehicle_signals.hpp"
+#include "adore_ros2_msgs/msg/traffic_signal.hpp"
+#include "adore_ros2_msgs/msg/safety_corridor.hpp"
 
 #include "dynamics/traffic_participant.hpp"
 #include "planning/trajectory_planner.hpp"
@@ -53,7 +55,14 @@ namespace behavior
                                 planner::TrajectoryPlanner& planner,
                                 const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
                                 const map::Route& route,
-                                const dynamics::TrafficParticipantSet& traffic_participants 
+                                const dynamics::TrafficParticipantSet& traffic_participants,
+                                const std::map<size_t, adore_ros2_msgs::msg::TrafficSignal>& traffic_signals
+    );
+
+    TrajectoryAndSignals driving_mission_following_reference(
+                            planner::TrajectoryPlanner& planner,
+                            const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
+                            const dynamics::Trajectory& reference_trajectory 
     );
 
     TrajectoryAndSignals waiting_for_mission(
@@ -76,6 +85,18 @@ namespace behavior
                                 const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
                                 const map::Route& route,
                                 const dynamics::TrafficParticipantSet& traffic_participants 
+    );
+
+    TrajectoryAndSignals avoiding_safety_corridor(
+                            planner::TrajectoryPlanner& planner,
+                            const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
+                            const dynamics::TrafficParticipantSet& traffic_participants, 
+                            const adore_ros2_msgs::msg::SafetyCorridor& safety_corridor
+    );
+
+    TrajectoryAndSignals emergency(
+                            planner::TrajectoryPlanner& planner,
+                            const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic
     );
 
 } // namespace behavior
