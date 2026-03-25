@@ -12,7 +12,6 @@
  ********************************************************************************/
 
 #pragma once
-#include "adore_dynamics_adapters.hpp"
 
 #include "behaviors.hpp"
 #include "conditions.hpp"
