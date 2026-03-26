@@ -20,6 +20,8 @@
 #include "dynamics/comfort_settings.hpp"
 #include "planning/trajectory_planner.hpp"
 #include "adore_ros2_msgs/msg/caution_zone.hpp"
+#include "adore_ros2_msgs/msg/traffic_participant.hpp"
+#include "adore_ros2_msgs/msg/traffic_participant_set.hpp"
 #include "std_msgs/msg/bool.hpp"
 
 namespace adore
@@ -36,6 +38,7 @@ private:
   // Driving subscribers
   rclcpp::Subscription<adore_ros2_msgs::msg::VehicleStateDynamic>::SharedPtr subscriber_vehicle_state_dynamic;
   rclcpp::Subscription<adore_ros2_msgs::msg::Route>::SharedPtr subscriber_route;
+  rclcpp::Subscription<adore_ros2_msgs::msg::TrafficParticipantSet>::SharedPtr subscriber_traffic_participants;
 
   // Vehicle subscribers
   rclcpp::Subscription<adore_ros2_msgs::msg::VehicleInfo>::SharedPtr subscriber_vehicle_info;

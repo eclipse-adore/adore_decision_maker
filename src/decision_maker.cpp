@@ -12,6 +12,8 @@
  ********************************************************************************/
 
 #include "decision_maker.hpp"
+#include "adore_ros2_msgs/msg/traffic_participant.hpp"
+#include "adore_ros2_msgs/msg/traffic_participant_set.hpp"
 
 namespace adore
 {
@@ -61,6 +63,19 @@ void DecisionMaker::setup_subscribers()
 
   subscriber_route = create_subscription<adore_ros2_msgs::msg::Route>( "route", 1,
                                       [this](const adore_ros2_msgs::msg::Route& msg) {  latest_route = map::conversions::to_cpp_type(msg); });
+
+  subscriber_traffic_participants = create_subscription<adore_ros2_msgs::msg::TrafficParticipantSet>( "traffic_participants", 1,
+                                      [this](const adore_ros2_msgs::msg::TrafficParticipantSet& msg) 
+                                      {  
+                                        auto participants = dynamics::conversions::to_cpp_type(msg);
+                                        for( const auto& [id, participant] : participants.participants )
+                                        {
+                                            traffic_participants.update_traffic_participants( participant );
+                                        }
+
+                                        double max_participant_age = 1.0;
+                                        traffic_participants.remove_old_participants( max_participant_age, now().seconds() );
+                                      });
 
   subscriber_reference_trajectory = create_subscription<adore_ros2_msgs::msg::Trajectory>( "reference_trajectory", 1,
                                       [this](const adore_ros2_msgs::msg::Trajectory& msg) { latest_reference_trajectory = dynamics::conversions::to_cpp_type(msg); });
