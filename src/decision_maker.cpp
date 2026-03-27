@@ -14,6 +14,8 @@
 #include "decision_maker.hpp"
 #include "adore_ros2_msgs/msg/traffic_participant.hpp"
 #include "adore_ros2_msgs/msg/traffic_participant_set.hpp"
+#include "behaviors.hpp"
+#include "conditions.hpp"
 
 namespace adore
 {
@@ -77,6 +79,34 @@ void DecisionMaker::setup_subscribers()
                                         traffic_participants.remove_old_participants( max_participant_age, now().seconds() );
                                       });
 
+  subscriber_v2x_traffic_participants = create_subscription<adore_ros2_msgs::msg::TrafficParticipantSet>( "/infrastructure/planned_traffic", 1,
+                                      [this](const adore_ros2_msgs::msg::TrafficParticipantSet& msg) 
+                                      {  
+                                        auto participants = dynamics::conversions::to_cpp_type(msg);
+
+                                        if ( participants.validity_area.has_value() )
+                                        {
+                                          latest_managed_zone = participants.validity_area;
+                                        }
+                                        
+                                        for( const auto& [id, participant] : participants.participants )
+                                        {
+                                          if ( !participant.v2x_id.has_value() || v2x_id != participant.v2x_id.value())
+                                          {
+                                            traffic_participants.update_traffic_participants( participant );
+                                            continue;
+                                          }
+
+                                          if ( participant.trajectory.has_value() )
+                                          {
+                                            latest_managed_trajectory = participant.trajectory; 
+                                          }
+                                        }
+
+                                        double max_participant_age = 1.0;
+                                        traffic_participants.remove_old_participants( max_participant_age, now().seconds() );
+                                      });
+
   subscriber_reference_trajectory = create_subscription<adore_ros2_msgs::msg::Trajectory>( "reference_trajectory", 1,
                                       [this](const adore_ros2_msgs::msg::Trajectory& msg) { latest_reference_trajectory = dynamics::conversions::to_cpp_type(msg); });
 
@@ -129,7 +159,7 @@ behavior::TrajectoryAndSignals DecisionMaker::choose_and_plan_driving_behavior()
   bool has_mission = conditions::has_mission(latest_vehicle_state_dynamic, latest_route);
   bool needs_remote_operator_assistance = conditions::need_remote_operator_assitance(latest_vehicle_state_dynamic, caution_zones);
   bool needs_to_avoid_safety_corridor = conditions::needs_to_avoid_safety_corridor(latest_vehicle_state_dynamic, latest_safety_corridor);
-  bool has_valid_reference_trajectory = conditions::has_valid_remote_reference_trajectory(latest_vehicle_state_dynamic, latest_reference_trajectory);
+  bool can_drive_managed = conditions::can_drive_managed(latest_vehicle_state_dynamic, time_now, latest_managed_zone, latest_managed_trajectory);
 
   if (
     can_drive_mission &&
@@ -163,14 +193,15 @@ behavior::TrajectoryAndSignals DecisionMaker::choose_and_plan_driving_behavior()
   if (
     can_drive_mission &&
     has_mission &&
-    has_valid_reference_trajectory
+    can_drive_managed
   )
   {
-    return behavior::driving_mission_following_reference(
-                            planner,
-                            latest_vehicle_state_dynamic.value(),
-                            latest_reference_trajectory.value()
-                          );
+    return behavior::driving_mission_following_managed(
+                  planner,
+                  latest_vehicle_state_dynamic.value(),
+                  latest_managed_trajectory.value(),
+                  latest_managed_zone.value()
+    );
   }
 
   if (

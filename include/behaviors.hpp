@@ -26,6 +26,7 @@
 #include "planning/trajectory_planner.hpp"
 
 #include "adore_dynamics_conversions.hpp"
+#include <adore_math/polygon.h>
 
 #include "planning/trajectory_planner.hpp"
 #include "planning/planning_helpers.hpp"
@@ -48,10 +49,11 @@ namespace behavior
                                 const std::map<size_t, adore_ros2_msgs::msg::TrafficSignal>& traffic_signals
     );
 
-    TrajectoryAndSignals driving_mission_following_reference(
+    TrajectoryAndSignals driving_mission_following_managed(
                             planner::TrajectoryPlanner& planner,
                             const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
-                            const dynamics::Trajectory& reference_trajectory 
+                            const dynamics::Trajectory& managed_trajectory, 
+                            const math::Polygon2d managed_zone
     );
 
     TrajectoryAndSignals waiting_for_mission(
