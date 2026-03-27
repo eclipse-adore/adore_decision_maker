@@ -16,6 +16,8 @@
 #include <cstdint>
 #include "adore_dynamics_conversions.hpp"
 #include "adore_ros2_msgs/msg/safety_corridor.hpp"
+#include <adore_math/polygon.h>
+#include <dynamics/trajectory.hpp>
 
 namespace adore
 {
@@ -31,11 +33,7 @@ namespace adore
         bool has_mission( const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic, const std::optional<map::Route>& route );
         bool need_remote_operator_assitance( const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic, const std::map<std::string, math::Polygon2d>& caution_zones );
         bool needs_to_avoid_safety_corridor( const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic, const std::optional<adore_ros2_msgs::msg::SafetyCorridor>& safety_corridor );
-        
-        // @TODO, consider making this (inside MAD area or similar instead)
-        bool has_valid_remote_reference_trajectory( const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic, const std::optional<dynamics::Trajectory>& reference_trajectory );
-
-        // @TODO, needs a condition and behavior for inside of validity area, but no reference, so it can used the extended perception
+        bool can_drive_managed( const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic, const double& time_now, const std::optional<math::Polygon2d>& managed_zone, const std::optional<dynamics::Trajectory>& managed_trajectory);
 
     } // namespace conditions
 } // namespace adore

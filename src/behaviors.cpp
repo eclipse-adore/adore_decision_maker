@@ -1,4 +1,5 @@
 #include "behaviors.hpp"
+#include <adore_dynamics_conversions.hpp>
 
 namespace adore
 {
@@ -32,17 +33,18 @@ namespace behavior
         return trajectory_and_signal;
     }
 
-    TrajectoryAndSignals driving_mission_following_reference(
+    TrajectoryAndSignals driving_mission_following_managed(
                             planner::TrajectoryPlanner& planner,
                             const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
-                            const dynamics::Trajectory& reference_trajectory 
+                            const dynamics::Trajectory& managed_trajectory, 
+                            const math::Polygon2d managed_zone
     )
     {
-        TrajectoryAndSignals trajectory_and_signal;
-        trajectory_and_signal.trajectory = dynamics::conversions::to_ros_msg( reference_trajectory );
-        trajectory_and_signal.trajectory.label = "driving mission (following reference)";
+        TrajectoryAndSignals trajectory_and_signals;
+        trajectory_and_signals.trajectory = dynamics::conversions::to_ros_msg( managed_trajectory );
+        trajectory_and_signals.trajectory.label = "driving mission (following managed)";
 
-        return trajectory_and_signal;
+        return trajectory_and_signals;
     }
 
     TrajectoryAndSignals waiting_for_mission(
