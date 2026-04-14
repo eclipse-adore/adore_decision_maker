@@ -1,1 +1,7 @@
 ros-${ROS_DISTRO}-yaml-cpp-vendor
+ros-${ROS_DISTRO}-rclcpp-components
+ros-${ROS_DISTRO}-sensor-msgs
+ros-${ROS_DISTRO}-std-msgs
+ros-${ROS_DISTRO}-tf2
+ros-${ROS_DISTRO}-tf2-geometry-msgs
+ros-${ROS_DISTRO}-tf2-ros
