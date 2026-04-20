@@ -26,6 +26,7 @@
 #include "planning/trajectory_planner.hpp"
 
 #include "adore_dynamics_conversions.hpp"
+#include "adore_ros2_msgs/msg/weather.hpp"
 #include <adore_math/polygon.h>
 
 #include "planning/trajectory_planner.hpp"
@@ -46,7 +47,8 @@ namespace behavior
                                 const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
                                 const map::Route& route,
                                 const dynamics::TrafficParticipantSet& traffic_participants,
-                                const std::map<size_t, adore_ros2_msgs::msg::TrafficSignal>& traffic_signals
+                                const std::map<size_t, adore_ros2_msgs::msg::TrafficSignal>& traffic_signals,
+                                const std::optional<adore_ros2_msgs::msg::Weather>& weather
     );
 
     TrajectoryAndSignals driving_mission_following_managed(
