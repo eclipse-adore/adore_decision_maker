@@ -12,6 +12,7 @@
  ********************************************************************************/
 
 #include "decision_maker.hpp"
+#include "adore_ros2_msgs/msg/odd.hpp"
 #include "adore_ros2_msgs/msg/traffic_participant.hpp"
 #include "adore_ros2_msgs/msg/traffic_participant_set.hpp"
 #include "behaviors.hpp"
@@ -66,6 +67,9 @@ void DecisionMaker::setup_subscribers()
   subscriber_route = create_subscription<adore_ros2_msgs::msg::Route>( "route", 1,
                                       [this](const adore_ros2_msgs::msg::Route& msg) {  latest_route = map::conversions::to_cpp_type(msg); });
 
+  subscriber_odd = create_subscription<adore_ros2_msgs::msg::Odd>( "odd", 1,
+                                      [this](const adore_ros2_msgs::msg::Odd& msg) {  latest_odd = msg; });
+
   subscriber_traffic_participants = create_subscription<adore_ros2_msgs::msg::TrafficParticipantSet>( "traffic_participants", 1,
                                       [this](const adore_ros2_msgs::msg::TrafficParticipantSet& msg) 
                                       {  
@@ -119,6 +123,9 @@ void DecisionMaker::setup_subscribers()
   subscriber_caution_zones = create_subscription<adore_ros2_msgs::msg::CautionZone>( "caution_zones", 1,
                                       [this](const adore_ros2_msgs::msg::CautionZone& msg) {  caution_zones[msg.label] = math::conversions::to_cpp_type(msg.polygon); });
 
+  subscriber_weather = create_subscription<adore_ros2_msgs::msg::Weather>( "weather", 1,
+                                      [this](const adore_ros2_msgs::msg::Weather& msg) {  latest_weather = msg; });
+
   subscriber_remote_operator_drive_approval = create_subscription<std_msgs::msg::Bool>( "suggested_trajectory_accepted", 1,
                                       [this](const std_msgs::msg::Bool& msg) {  remote_operator_drive_approval = msg.data; });
 
@@ -155,14 +162,15 @@ behavior::TrajectoryAndSignals DecisionMaker::choose_and_plan_driving_behavior()
 {
   double time_now = now().seconds();
 
-  bool can_drive_mission = conditions::can_drive_mission(latest_vehicle_state_dynamic, time_now);
+  bool has_localization = conditions::has_localization(latest_vehicle_state_dynamic, time_now);
   bool has_mission = conditions::has_mission(latest_vehicle_state_dynamic, latest_route);
   bool needs_remote_operator_assistance = conditions::need_remote_operator_assitance(latest_vehicle_state_dynamic, caution_zones);
   bool needs_to_avoid_safety_corridor = conditions::needs_to_avoid_safety_corridor(latest_vehicle_state_dynamic, latest_safety_corridor);
   bool can_drive_managed = conditions::can_drive_managed(latest_vehicle_state_dynamic, time_now, latest_managed_zone, latest_managed_trajectory);
+  bool odd_conditions_satisfied = conditions::odd_conditions_satisfied(latest_odd, time_now);
 
   if (
-    can_drive_mission &&
+    has_localization &&
     needs_to_avoid_safety_corridor
   )
   {
@@ -175,9 +183,9 @@ behavior::TrajectoryAndSignals DecisionMaker::choose_and_plan_driving_behavior()
   }
 
   if (
-      can_drive_mission &&
+      has_localization &&
       has_mission &&
-      needs_remote_operator_assistance
+      needs_remote_operator_assistance // @TODO, later add "or odd conditions satisfied false"
   )
   {
     return behavior::remote_operations(
@@ -191,9 +199,11 @@ behavior::TrajectoryAndSignals DecisionMaker::choose_and_plan_driving_behavior()
   }
 
   if (
-    can_drive_mission &&
+    has_localization &&
     has_mission &&
+    odd_conditions_satisfied && 
     can_drive_managed
+
   )
   {
     return behavior::driving_mission_following_managed(
@@ -205,8 +215,9 @@ behavior::TrajectoryAndSignals DecisionMaker::choose_and_plan_driving_behavior()
   }
 
   if (
-      can_drive_mission &&
-      has_mission
+      has_localization &&
+      has_mission &&
+      odd_conditions_satisfied
   )
   {
     return behavior::driving_mission(
@@ -214,17 +225,32 @@ behavior::TrajectoryAndSignals DecisionMaker::choose_and_plan_driving_behavior()
                                 latest_vehicle_state_dynamic.value(),
                                 latest_route.value(),
                                 traffic_participants,
-                                traffic_signals
+                                traffic_signals,
+                                latest_weather
                               );
   }
 
   if ( 
-      can_drive_mission
+      has_localization &&
+      odd_conditions_satisfied
   )
   {
     return behavior::waiting_for_mission(
                                 planner,
                                 latest_vehicle_state_dynamic.value(),
+                                traffic_participants
+                              );
+  }
+
+  if (
+    has_localization &&
+    has_mission
+  )
+  {
+    return behavior::minimum_risk(
+                                  planner, 
+                                  latest_vehicle_state_dynamic.value(), 
+                                  latest_route.value(), 
                                 traffic_participants
                               );
   }

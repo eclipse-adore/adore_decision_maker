@@ -12,6 +12,7 @@
  ********************************************************************************/
 
 #include "conditions.hpp"
+#include "adore_ros2_msgs/msg/odd.hpp"
 
 namespace adore
 {
@@ -19,7 +20,7 @@ namespace conditions
 {
 
 
-bool can_drive_mission( 
+bool has_localization( 
                 const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic, 
                 const double& time_now )
 {
@@ -95,6 +96,19 @@ bool can_drive_managed(
 
     double age = vehicle_state_dynamic.value().time - managed_trajectory.value().states.front().time;
     return age <= MAXIMUM_REFERENCE_TRAJECTORY_AGE_SECONDS;
+}
+
+bool odd_conditions_satisfied( 
+                               const std::optional<adore_ros2_msgs::msg::Odd>& odd, 
+                               const double& time_now )
+{
+    if ( !odd.has_value() )
+        return false;
+
+    if ( time_now - odd.value().time > MAXIMUM_ODD_AGE_SECONDS )
+        return false;
+    
+    return odd.value().matching;
 }
 
 } // namespace conditions
