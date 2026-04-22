@@ -31,6 +31,7 @@
 
 #include "planning/trajectory_planner.hpp"
 #include "planning/planning_helpers.hpp"
+#include "adore_ros2_msgs/msg/odd.hpp"
 
 namespace adore
 {
@@ -77,7 +78,8 @@ namespace behavior
                                 planner::TrajectoryPlanner& planner,
                                 const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
                                 const map::Route& route,
-                                const dynamics::TrafficParticipantSet& traffic_participants 
+                                const dynamics::TrafficParticipantSet& traffic_participants,
+                                const std::optional<adore_ros2_msgs::msg::Odd>& odd
     );
 
     TrajectoryAndSignals avoiding_safety_corridor(

@@ -124,7 +124,8 @@ namespace behavior
             planner,
             vehicle_state_dynamic,
             route,
-            traffic_participants
+            traffic_participants,
+            {}
         );
 
         trajectory_and_signals.trajectory.label = "remote operations (waiting for remote operator instructions)";
@@ -135,7 +136,8 @@ namespace behavior
                                 planner::TrajectoryPlanner& planner,
                                 const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
                                 const map::Route& route,
-                                const dynamics::TrafficParticipantSet& traffic_participants 
+                                const dynamics::TrafficParticipantSet& traffic_participants, 
+                                const std::optional<adore_ros2_msgs::msg::Odd>& odd
     )
     {
 
@@ -149,7 +151,22 @@ namespace behavior
         {
             planned_trajectory.states.push_back( vehicle_state_dynamic );
         }
+
         planned_trajectory.label = "Minimum Risk Maneuver";
+
+        if ( !odd.has_value() )
+        {
+            planned_trajectory.label = "Minimum Risk Maneuver - due to missing odd topic";
+        }
+
+        if ( odd.has_value() )
+        {
+            if ( !odd.value().matching )
+            {
+                planned_trajectory.label = "Minimum Risk Maneuver - " + odd.value().status;
+            }
+        }
+
 
         TrajectoryAndSignals trajectory_and_signals;
         trajectory_and_signals.trajectory = dynamics::conversions::to_ros_msg(planned_trajectory);

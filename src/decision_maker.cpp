@@ -251,7 +251,8 @@ behavior::TrajectoryAndSignals DecisionMaker::choose_and_plan_driving_behavior()
                                   planner, 
                                   latest_vehicle_state_dynamic.value(), 
                                   latest_route.value(), 
-                                traffic_participants
+                                  traffic_participants,
+                                  latest_odd
                               );
   }
 
