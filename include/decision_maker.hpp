@@ -65,6 +65,7 @@ private:
   std::optional<adore_ros2_msgs::msg::VehicleInfo> latest_vehicle_info;
 
   rclcpp::Publisher<adore_ros2_msgs::msg::Trajectory>::SharedPtr publisher_trajectory_decision;
+  rclcpp::Publisher<adore_ros2_msgs::msg::Trajectory>::SharedPtr publisher_alternative_trajectory_decision;
   rclcpp::Publisher<adore_ros2_msgs::msg::TrafficParticipant>::SharedPtr publisher_v2x_traffic_participant;
 
   // Planning
@@ -98,7 +99,7 @@ private:
   void setup_publishers();
   void timer_callback(); // main loop
 
-  behavior::TrajectoryAndSignals choose_and_plan_driving_behavior();
+  behavior::Behavior choose_and_plan_driving_behavior();
   adore_ros2_msgs::msg::TrafficParticipant make_default_participant();
 };
 

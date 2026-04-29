@@ -13,13 +13,15 @@
 
 #include "behaviors.hpp"
 #include <adore_dynamics_conversions.hpp>
+#include <adore_math/distance.h>
 #include <dynamics/comfort_settings.hpp>
+#include <dynamics/trajectory.hpp>
 
 namespace adore
 {
 namespace behavior
 {
-    TrajectoryAndSignals driving_mission(
+    Behavior driving_mission(
                                 planner::TrajectoryPlanner& planner,
                                 const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
                                 const map::Route& route,
@@ -49,7 +51,7 @@ namespace behavior
                 trajectory.adjust_start_time( vehicle_state_dynamic.time );
                 trajectory.label              = "driving mission (carefully due to wind)";
 
-                TrajectoryAndSignals trajectory_and_signal;
+                Behavior trajectory_and_signal;
                 trajectory_and_signal.trajectory = dynamics::conversions::to_ros_msg( trajectory );
 
                 return trajectory_and_signal;
@@ -64,7 +66,7 @@ namespace behavior
                 trajectory.adjust_start_time( vehicle_state_dynamic.time );
                 trajectory.label              = "driving mission (carefully due to rain)";
 
-                TrajectoryAndSignals trajectory_and_signal;
+                Behavior trajectory_and_signal;
                 trajectory_and_signal.trajectory = dynamics::conversions::to_ros_msg( trajectory );
 
                 return trajectory_and_signal;
@@ -76,27 +78,27 @@ namespace behavior
         trajectory.adjust_start_time( vehicle_state_dynamic.time );
         trajectory.label              = "driving mission";
 
-        TrajectoryAndSignals trajectory_and_signal;
+        Behavior trajectory_and_signal;
         trajectory_and_signal.trajectory = dynamics::conversions::to_ros_msg( trajectory );
 
         return trajectory_and_signal;
     }
 
-    TrajectoryAndSignals driving_mission_following_managed(
+    Behavior driving_mission_following_managed(
                             planner::TrajectoryPlanner& planner,
                             const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
                             const dynamics::Trajectory& managed_trajectory, 
                             const math::Polygon2d managed_zone
     )
     {
-        TrajectoryAndSignals trajectory_and_signals;
+        Behavior trajectory_and_signals;
         trajectory_and_signals.trajectory = dynamics::conversions::to_ros_msg( managed_trajectory );
         trajectory_and_signals.trajectory.label = "driving mission (following managed)";
 
         return trajectory_and_signals;
     }
 
-    TrajectoryAndSignals waiting_for_mission(
+    Behavior waiting_for_mission(
                                 planner::TrajectoryPlanner& planner,
                                 const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
                                 const dynamics::TrafficParticipantSet& traffic_participants 
@@ -107,30 +109,43 @@ namespace behavior
 
         trajectory.states.push_back( vehicle_state_dynamic );
 
-        TrajectoryAndSignals trajectory_and_signal;
+        Behavior trajectory_and_signal;
         trajectory_and_signal.trajectory = dynamics::conversions::to_ros_msg( trajectory );
 
         return trajectory_and_signal;
     }
 
-    TrajectoryAndSignals remote_operations(
+    Behavior remote_operations(
                                 planner::TrajectoryPlanner& planner,
                                 const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
                                 const map::Route& route,
                                 const dynamics::TrafficParticipantSet& traffic_participants,
-                                const bool& approved_to_drive_suggested_remote_operations,
-                                const std::optional<dynamics::Trajectory>& suggested_remote_operator_trajectory
+                                bool& approved_to_drive_suggested_remote_operations,
+                                std::optional<dynamics::Trajectory>& suggested_remote_operator_trajectory
     )
     {
-        TrajectoryAndSignals trajectory_and_signals;
+        Behavior trajectory_and_signals;
 
         if ( suggested_remote_operator_trajectory.has_value() && approved_to_drive_suggested_remote_operations )
         {
-            dynamics::Trajectory trajectory = suggested_remote_operator_trajectory.value();
-            trajectory.label              = "remote operations (driving remote operator instructions)";
+            auto trajectory = suggested_remote_operator_trajectory.value();
+            
+            if ( !trajectory.states.empty() ) 
+            {
+                if ( 
+                    adore::math::distance_2d(trajectory.states.back(), vehicle_state_dynamic) > MAX_DISTANCE_TO_LAST_TRAJECTORY_POINT_BEFORE_RETURNING_TO_REMOTE_OPERATIONS_DRIVING
+                )
+                {
+                    trajectory.label              = "remote operations (driving remote operator instructions)";
+                    trajectory_and_signals.trajectory = dynamics::conversions::to_ros_msg(trajectory);
 
-            trajectory_and_signals.trajectory = dynamics::conversions::to_ros_msg(trajectory);
-            return trajectory_and_signals;
+                    return trajectory_and_signals;
+                }
+
+                // Return the vehicle to waiting for intructions if it doesn't pass the above checks
+                suggested_remote_operator_trajectory.reset();
+                approved_to_drive_suggested_remote_operations = false;
+            }
         }
 
         trajectory_and_signals = minimum_risk(
@@ -140,12 +155,40 @@ namespace behavior
             traffic_participants,
             {}
         );
-
         trajectory_and_signals.trajectory.label = "remote operations (waiting for remote operator instructions)";
+
+        if ( vehicle_state_dynamic.vx < 0.5 ) // Should first send alternative trajectories when standing still
+        {
+            trajectory_and_signals.alternative_trajectory = dynamics::conversions::to_ros_msg(
+                                                                                              get_alternative_trajectory_in_remote_operations(
+                                                                                                  planner, 
+                                                                                                  vehicle_state_dynamic, 
+                                                                                                  route, 
+                                                                                                  traffic_participants));
+        }
+
         return trajectory_and_signals;
     }
 
-    TrajectoryAndSignals minimum_risk(
+    dynamics::Trajectory get_alternative_trajectory_in_remote_operations(
+                                planner::TrajectoryPlanner& planner,
+                                const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
+                                const map::Route& route,
+                                const dynamics::TrafficParticipantSet& traffic_participants 
+    )
+    {
+        // @TODO, make this alternative trajectory take the area with problems into account
+        
+        double state_s = route.get_s( vehicle_state_dynamic );
+        auto   cut_route          = route.get_shortened_route( state_s, 100.0 );
+        auto   alternative_trajectory = planner::waypoints_to_trajectory( 
+                                                                        vehicle_state_dynamic, cut_route, traffic_participants,
+                                                                        dynamics::PhysicalVehicleModel(planner.get_physical_vehicle_parameters()), 
+                                                                        5.5 /* target_speed 20 km/h */ );
+        return alternative_trajectory;
+    }
+
+    Behavior minimum_risk(
                                 planner::TrajectoryPlanner& planner,
                                 const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
                                 const map::Route& route,
@@ -165,13 +208,7 @@ namespace behavior
             planned_trajectory.states.push_back( vehicle_state_dynamic );
         }
 
-        planned_trajectory.label = "Minimum Risk Maneuver";
-
-        if ( !odd.has_value() )
-        {
-            planned_trajectory.label = "Minimum Risk Maneuver - due to missing odd topic";
-        }
-
+        planned_trajectory.label = "Minimum Risk Maneuver - due to missing odd topic";
         if ( odd.has_value() )
         {
             if ( !odd.value().matching )
@@ -181,13 +218,13 @@ namespace behavior
         }
 
 
-        TrajectoryAndSignals trajectory_and_signals;
+        Behavior trajectory_and_signals;
         trajectory_and_signals.trajectory = dynamics::conversions::to_ros_msg(planned_trajectory);
 
         return trajectory_and_signals;
     }
 
-    TrajectoryAndSignals avoiding_safety_corridor(
+    Behavior avoiding_safety_corridor(
                             planner::TrajectoryPlanner& planner,
                             const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
                             const dynamics::TrafficParticipantSet& traffic_participants, 
@@ -205,13 +242,13 @@ namespace behavior
 
         planned_trajectory.label = "avoiding safety corridor";
 
-        TrajectoryAndSignals trajectory_and_signals;
+        Behavior trajectory_and_signals;
         trajectory_and_signals.trajectory = dynamics::conversions::to_ros_msg(planned_trajectory);
 
         return trajectory_and_signals;
     }
 
-    TrajectoryAndSignals emergency(
+    Behavior emergency(
                             planner::TrajectoryPlanner& planner,
                             const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic  
     )
@@ -222,7 +259,7 @@ namespace behavior
 
         emergency_stop_trajectory.label = "emergency stop";
 
-        TrajectoryAndSignals trajectory_and_signals;
+        Behavior trajectory_and_signals;
         trajectory_and_signals.trajectory = dynamics::conversions::to_ros_msg(emergency_stop_trajectory);
 
         return trajectory_and_signals;

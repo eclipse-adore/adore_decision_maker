@@ -37,13 +37,16 @@ namespace adore
 {
 namespace behavior
 {    
-    struct TrajectoryAndSignals
+    struct Behavior
     {
         adore_ros2_msgs::msg::Trajectory trajectory;
+        std::optional<adore_ros2_msgs::msg::Trajectory> alternative_trajectory;
         adore_ros2_msgs::msg::VehicleSignals signals;
     };
 
-    TrajectoryAndSignals driving_mission(
+    const double MAX_DISTANCE_TO_LAST_TRAJECTORY_POINT_BEFORE_RETURNING_TO_REMOTE_OPERATIONS_DRIVING = 1.0;
+
+    Behavior driving_mission(
                                 planner::TrajectoryPlanner& planner,
                                 const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
                                 const map::Route& route,
@@ -52,29 +55,36 @@ namespace behavior
                                 const std::optional<adore_ros2_msgs::msg::Weather>& weather
     );
 
-    TrajectoryAndSignals driving_mission_following_managed(
+    Behavior driving_mission_following_managed(
                             planner::TrajectoryPlanner& planner,
                             const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
                             const dynamics::Trajectory& managed_trajectory, 
                             const math::Polygon2d managed_zone
     );
 
-    TrajectoryAndSignals waiting_for_mission(
+    Behavior waiting_for_mission(
                                 planner::TrajectoryPlanner& planner,
                                 const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
                                 const dynamics::TrafficParticipantSet& traffic_participants 
     );
     
-    TrajectoryAndSignals remote_operations(
+    Behavior remote_operations(
                                 planner::TrajectoryPlanner& planner,
                                 const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
                                 const map::Route& route,
                                 const dynamics::TrafficParticipantSet& traffic_participants,
-                                const bool& approved_to_drive_suggested_remote_operations,
-                                const std::optional<dynamics::Trajectory>& suggested_remote_operator_trajectory
+                                bool& approved_to_drive_suggested_remote_operations,
+                                std::optional<dynamics::Trajectory>& suggested_remote_operator_trajectory
     );
 
-    TrajectoryAndSignals minimum_risk(
+    dynamics::Trajectory get_alternative_trajectory_in_remote_operations(
+                                planner::TrajectoryPlanner& planner,
+                                const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
+                                const map::Route& route,
+                                const dynamics::TrafficParticipantSet& traffic_participants 
+    );
+
+    Behavior minimum_risk(
                                 planner::TrajectoryPlanner& planner,
                                 const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
                                 const map::Route& route,
@@ -82,17 +92,16 @@ namespace behavior
                                 const std::optional<adore_ros2_msgs::msg::Odd>& odd
     );
 
-    TrajectoryAndSignals avoiding_safety_corridor(
-                            planner::TrajectoryPlanner& planner,
-                            const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
-                            const dynamics::TrafficParticipantSet& traffic_participants, 
-                            const adore_ros2_msgs::msg::SafetyCorridor& safety_corridor
+    Behavior avoiding_safety_corridor(
+                                planner::TrajectoryPlanner& planner,
+                                const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
+                                const dynamics::TrafficParticipantSet& traffic_participants, 
+                                const adore_ros2_msgs::msg::SafetyCorridor& safety_corridor
     );
 
-    TrajectoryAndSignals emergency(
-                            planner::TrajectoryPlanner& planner,
-                            const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic
+    Behavior emergency(
+                                planner::TrajectoryPlanner& planner,
+                                const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic
     );
-
 } // namespace behavior
 } // namespace adore
