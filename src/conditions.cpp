@@ -13,6 +13,7 @@
 
 #include "conditions.hpp"
 #include "adore_ros2_msgs/msg/odd.hpp"
+#include <dynamics/vehicle_state.hpp>
 
 namespace adore
 {
@@ -47,10 +48,10 @@ bool has_mission(
     return remaining > MINIMUM_ROUTE_LENGHTH_METERS;
 }
 
-bool need_remote_operator_assitance( 
-                                        const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic, 
-                                        const std::map<std::string, math::Polygon2d>& caution_zones 
-                                    )
+bool needs_remote_operator_assitance( 
+                            const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic, 
+                            const std::map<std::string, math::Polygon2d>& caution_zones
+                        )
 {
     if ( !vehicle_state_dynamic.has_value() )
         return false;

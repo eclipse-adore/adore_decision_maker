@@ -143,13 +143,19 @@ void DecisionMaker::setup_subscribers()
 void DecisionMaker::setup_publishers()
 {
   publisher_trajectory_decision = create_publisher<adore_ros2_msgs::msg::Trajectory>( "trajectory_decision", 1 );
+  publisher_alternative_trajectory_decision = create_publisher<adore_ros2_msgs::msg::Trajectory>( "alternative_trajectory_decision", 1 );
   publisher_v2x_traffic_participant = create_publisher<adore_ros2_msgs::msg::TrafficParticipant>( "v2x_traffic_participant", 1 );
 }
 
 void DecisionMaker::timer_callback()
 {
-  auto trajectory_and_signals = choose_and_plan_driving_behavior();
-  publisher_trajectory_decision->publish(trajectory_and_signals.trajectory);
+  auto behavior = choose_and_plan_driving_behavior();
+  publisher_trajectory_decision->publish(behavior.trajectory);
+
+  if ( behavior.alternative_trajectory.has_value() )
+  {
+    publisher_alternative_trajectory_decision->publish(behavior.alternative_trajectory.value());
+  }
 
   // @TODO, add publisher and behavior for signals
 
@@ -158,13 +164,13 @@ void DecisionMaker::timer_callback()
   // @TODO, add a cleanup step, that removes old caution zones and old suggested trajectories, old safety corridors
 }
 
-behavior::TrajectoryAndSignals DecisionMaker::choose_and_plan_driving_behavior()
+behavior::Behavior DecisionMaker::choose_and_plan_driving_behavior()
 {
   double time_now = now().seconds();
 
   bool has_localization = conditions::has_localization(latest_vehicle_state_dynamic, time_now);
   bool has_mission = conditions::has_mission(latest_vehicle_state_dynamic, latest_route);
-  bool needs_remote_operator_assistance = conditions::need_remote_operator_assitance(latest_vehicle_state_dynamic, caution_zones);
+  bool needs_remote_operator_assitance = conditions::needs_remote_operator_assitance( latest_vehicle_state_dynamic, caution_zones ); 
   bool needs_to_avoid_safety_corridor = conditions::needs_to_avoid_safety_corridor(latest_vehicle_state_dynamic, latest_safety_corridor);
   bool can_drive_managed = conditions::can_drive_managed(latest_vehicle_state_dynamic, time_now, latest_managed_zone, latest_managed_trajectory);
   bool odd_conditions_satisfied = conditions::odd_conditions_satisfied(latest_odd, time_now);
@@ -185,8 +191,8 @@ behavior::TrajectoryAndSignals DecisionMaker::choose_and_plan_driving_behavior()
   if (
       has_localization &&
       has_mission &&
-      needs_remote_operator_assistance // @TODO, later add "or odd conditions satisfied false"
-  )
+      needs_remote_operator_assitance
+    )
   {
     return behavior::remote_operations(
                                 planner,
