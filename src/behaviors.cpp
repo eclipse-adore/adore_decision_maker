@@ -26,19 +26,12 @@ namespace behavior
                                 const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
                                 const map::Route& route,
                                 const dynamics::TrafficParticipantSet& traffic_participants,
-                                const std::map<size_t, adore_ros2_msgs::msg::TrafficSignal>& traffic_signals,
+                                const adore_ros2_msgs::msg::TrafficSignals& traffic_signals,
                                 const std::optional<adore_ros2_msgs::msg::Weather>& weather
                            )
     {
         // Go through route, and update speed at points based on traffic signal positions
-        auto route_with_signal = route;
-        for( auto& p : route_with_signal.reference_line )
-        {
-            if( std::any_of( traffic_signals.begin(), traffic_signals.end(), [&]( const auto& s ) {
-                return adore::math::distance_2d( s.second, p.second ) < 3.0 && s.second.state != adore_ros2_msgs::msg::TrafficSignal::GREEN;
-                } ) )
-            p.second.max_speed = 0;
-        }
+        dynamics::TrafficSignalSet traffic_signal_set = dynamics::conversions::to_cpp_type( traffic_signals );
 
         if ( weather.has_value() )
         {
@@ -47,7 +40,10 @@ namespace behavior
                 dynamics::ComfortSettings custom_comfort_settings;
                 custom_comfort_settings.max_speed = 5.5; // 20 km/h
             
-                dynamics::Trajectory trajectory = planner.plan_route_trajectory_with_custom_comfort_settings( route_with_signal, vehicle_state_dynamic, traffic_participants, custom_comfort_settings );
+                dynamics::Trajectory trajectory = planner.plan_route_trajectory_with_custom_comfort_settings( route, vehicle_state_dynamic, 
+                                                                                                              traffic_participants, 
+                                                                                                              custom_comfort_settings,
+                                                                                                              traffic_signal_set );
                 trajectory.adjust_start_time( vehicle_state_dynamic.time );
                 trajectory.label              = "driving mission (carefully due to wind)";
 
@@ -62,7 +58,10 @@ namespace behavior
                 dynamics::ComfortSettings custom_comfort_settings;
                 custom_comfort_settings.max_speed = 5.5; // 20 km/h
             
-                dynamics::Trajectory trajectory = planner.plan_route_trajectory_with_custom_comfort_settings( route_with_signal, vehicle_state_dynamic, traffic_participants, custom_comfort_settings );
+                dynamics::Trajectory trajectory = planner.plan_route_trajectory_with_custom_comfort_settings( route, vehicle_state_dynamic,
+                                                                                                              traffic_participants, 
+                                                                                                              custom_comfort_settings, 
+                                                                                                              traffic_signal_set );
                 trajectory.adjust_start_time( vehicle_state_dynamic.time );
                 trajectory.label              = "driving mission (carefully due to rain)";
 
@@ -74,7 +73,7 @@ namespace behavior
         }
 
 
-        dynamics::Trajectory trajectory = planner.plan_route_trajectory( route_with_signal, vehicle_state_dynamic, traffic_participants );
+        dynamics::Trajectory trajectory = planner.plan_route_trajectory( route, vehicle_state_dynamic, traffic_participants, traffic_signal_set );
         trajectory.adjust_start_time( vehicle_state_dynamic.time );
         trajectory.label              = "driving mission";
 

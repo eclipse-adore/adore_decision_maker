@@ -15,11 +15,13 @@
 #include <optional>
 
 #include "dynamics/trajectory.hpp"
+#include "dynamics/traffic_signal.hpp"
 #include "adore_map/route.hpp"
 
 #include "adore_ros2_msgs/msg/trajectory.hpp"
 #include "adore_ros2_msgs/msg/vehicle_signals.hpp"
 #include "adore_ros2_msgs/msg/traffic_signal.hpp"
+#include "adore_ros2_msgs/msg/traffic_signals.hpp"
 #include "adore_ros2_msgs/msg/safety_corridor.hpp"
 
 #include "dynamics/traffic_participant.hpp"
@@ -51,7 +53,7 @@ namespace behavior
                                 const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
                                 const map::Route& route,
                                 const dynamics::TrafficParticipantSet& traffic_participants,
-                                const std::map<size_t, adore_ros2_msgs::msg::TrafficSignal>& traffic_signals,
+                                const adore_ros2_msgs::msg::TrafficSignals& traffic_signals,
                                 const std::optional<adore_ros2_msgs::msg::Weather>& weather
     );
 
