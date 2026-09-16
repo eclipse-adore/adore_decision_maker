@@ -73,6 +73,50 @@ namespace behavior
             }
         }
 
+        // Weather is a speed overlay, not a competing behavior. Compose it with
+        // traffic-light handling before both initial and active obstacle
+        // avoidance so adverse weather never disables detection or replanning.
+        auto route_for_planning = route_with_signal;
+        if( use_weather_comfort_settings )
+        {
+            for( auto& [s, point] : route_for_planning.reference_line )
+            {
+                static_cast<void>( s );
+                point.max_speed =
+                    std::min(
+                        point.max_speed.value_or(
+                            std::numeric_limits<double>::infinity() ),
+                        weather_comfort_settings.max_speed );
+            }
+        }
+
+        const auto with_weather_label =
+            [&]( Behavior behavior )
+            {
+                if( use_weather_comfort_settings &&
+                    !behavior.trajectory.label.empty() )
+                {
+                    behavior.trajectory.label +=
+                        " (" + weather_label + ")";
+                }
+                return behavior;
+            };
+
+        // Hard OA bypass: disabling obstacle avoidance cancels a previously
+        // active maneuver, while retaining traffic-light and weather overlays.
+        if( !params_for_obstacle_avoidance.enabled )
+        {
+            active_avoidance_state.reset();
+            return with_weather_label(
+                plan_obstacle_avoidance_behavior(
+                    planner,
+                    route_for_planning,
+                    vehicle_state_dynamic,
+                    traffic_participants,
+                    params_for_obstacle_avoidance,
+                    active_avoidance_state ) );
+        }
+
         // -------------------------------------------------------------------------
         // OA invariant:
         // The decision maker never publishes free-space emergency trajectories.
@@ -82,11 +126,11 @@ namespace behavior
         //
         // Persistent obstacle avoidance maneuver.
         //
-        // If an OA maneuver is active, keep driving the stored modified route until
-        // the ego vehicle has passed the release point. Do not use disappearing
-        // obstacle detections to end a successful avoidance early. If a new
+        // Keep driving the stored modified route until the ego vehicle has passed
+        // the release point. Persistent obstacle hulls prevent a temporarily
+        // vanished or fragmented detection from collapsing the route. If a new
         // obstacle conflicts with the active modified route through the generic
-        // route-corridor safety check, first try to replan a new modified route;
+        // route-corridor safety check, first try to extend the modified route;
         // fall back to a route speed-profile stop only if no validated replan
         // exists.
         //
@@ -101,12 +145,10 @@ namespace behavior
             return continue_active_avoidance(
                 planner,
                 vehicle_state_dynamic,
-                route_with_signal,
+                route_for_planning,
                 traffic_participants,
-                traffic_signal_set,
                 params_for_obstacle_avoidance,
                 use_weather_comfort_settings,
-                weather_comfort_settings,
                 weather_label,
                 active_avoidance_state );
         }
@@ -114,34 +156,24 @@ namespace behavior
         if( auto ego_lane_behavior =
                 try_ego_lane_oncoming_stop_behavior(
                     planner,
-                    route_with_signal,
+                    route_for_planning,
                     vehicle_state_dynamic,
                     traffic_participants,
                     params_for_obstacle_avoidance );
             ego_lane_behavior.has_value() )
         {
-            return ego_lane_behavior.value();
+            return with_weather_label(
+                ego_lane_behavior.value() );
         }
 
-        if( use_weather_comfort_settings )
-        {
-            return plan_weather_behavior(
+        return with_weather_label(
+            plan_obstacle_avoidance_behavior(
                 planner,
-                route_with_signal,
+                route_for_planning,
                 vehicle_state_dynamic,
                 traffic_participants,
                 params_for_obstacle_avoidance,
-                weather_comfort_settings,
-                weather_label );
-        }
-
-        return plan_obstacle_avoidance_behavior(
-            planner,
-            route_with_signal,
-            vehicle_state_dynamic,
-            traffic_participants,
-            params_for_obstacle_avoidance,
-            active_avoidance_state );
+                active_avoidance_state ) );
     }
 
     Behavior driving_unstructured(
@@ -154,10 +186,7 @@ namespace behavior
     {
         Behavior trajectory_and_signal;
 
-        // planner.set_goal( 605050.90, 5795017.68 );
         planner.set_goal( route, drivable_area, vehicle_state_dynamic );
-        rclcpp::Clock clock;
-        double now_time = clock.now().seconds();
         auto                 result             = planner.plan_trajectory( vehicle_state_dynamic, traffic_participants, drivable_area, route );
         if( !result.trajectory.has_value() )
         {
@@ -175,10 +204,10 @@ namespace behavior
     }
 
     Behavior driving_mission_following_managed(
-                            planner::TrajectoryPlanner& planner,
-                            const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
-                            const dynamics::Trajectory& managed_trajectory, 
-                            const math::Polygon2d managed_zone
+                            [[maybe_unused]] planner::TrajectoryPlanner& planner,
+                            [[maybe_unused]] const dynamics::VehicleStateDynamic& vehicle_state_dynamic,
+                            const dynamics::Trajectory& managed_trajectory,
+                            [[maybe_unused]] const math::Polygon2d managed_zone
     )
     {
         Behavior trajectory_and_signals;
@@ -189,9 +218,9 @@ namespace behavior
     }
 
     Behavior waiting_for_mission(
-                                planner::TrajectoryPlanner& planner,
-                                const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
-                                const dynamics::TrafficParticipantSet& traffic_participants 
+                                [[maybe_unused]] planner::TrajectoryPlanner& planner,
+                                const dynamics::VehicleStateDynamic& vehicle_state_dynamic,
+                                [[maybe_unused]] const dynamics::TrafficParticipantSet& traffic_participants
                             )
     {
         dynamics::Trajectory trajectory;
@@ -337,8 +366,8 @@ namespace behavior
     }
 
     Behavior emergency(
-                            planner::TrajectoryPlanner& planner,
-                            const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic  
+                            [[maybe_unused]] planner::TrajectoryPlanner& planner,
+                            const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic
     )
     {
         dynamics::Trajectory emergency_stop_trajectory;

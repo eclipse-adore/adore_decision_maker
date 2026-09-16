@@ -27,22 +27,20 @@ namespace behavior
 
 // Obstacle-avoidance behavior dispatch, factored out of behaviors.cpp.
 // driving_mission() dispatches to these; all of their internal helpers
-// (hold/stop behavior builders, ghost-memory orchestration, monitors) are
-// file-local in behaviors_obstacle_avoidance.cpp.
+// (hold/stop behavior builders, monitors) are file-local in
+// behaviors_obstacle_avoidance.cpp.
 
-// Active obstacle-avoidance maneuver handling: keep following the stored
-// modified route, monitor it, replan or stop on new/oncoming conflicts, and
-// release back to the mission route once the obstacle is passed.
+// Active obstacle-avoidance maneuver handling: follow and monitor the stored
+// modified route, replan or stop on new/oncoming conflicts, and return to fresh
+// mission-route planning after passing the persistent obstacle hulls.
 Behavior
 continue_active_avoidance(
     planner::TrajectoryPlanner& planner,
     const dynamics::VehicleStateDynamic& vehicle_state_dynamic,
     const map::Route& route_with_signal,
     const dynamics::TrafficParticipantSet& traffic_participants,
-    const dynamics::TrafficSignalSet& traffic_signals,
     const planner::ObstacleAvoidanceParams& params_for_obstacle_avoidance,
     bool use_weather_comfort_settings,
-    const dynamics::ComfortSettings& weather_comfort_settings,
     const std::string& weather_label,
     planner::ActiveAvoidanceState& active_avoidance_state );
 
@@ -55,17 +53,6 @@ try_ego_lane_oncoming_stop_behavior(
     const dynamics::VehicleStateDynamic& vehicle_state_dynamic,
     const dynamics::TrafficParticipantSet& traffic_participants,
     const planner::ObstacleAvoidanceParams& params_for_obstacle_avoidance );
-
-// Reduced-speed driving under adverse weather.
-Behavior
-plan_weather_behavior(
-    planner::TrajectoryPlanner& planner,
-    const map::Route& route_with_signal,
-    const dynamics::VehicleStateDynamic& vehicle_state_dynamic,
-    const dynamics::TrafficParticipantSet& traffic_participants,
-    const planner::ObstacleAvoidanceParams& params_for_obstacle_avoidance,
-    const dynamics::ComfortSettings& weather_comfort_settings,
-    const std::string& weather_label );
 
 // Plan a new obstacle-avoidance maneuver (shift or stop) when none is active.
 Behavior
