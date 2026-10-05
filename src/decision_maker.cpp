@@ -247,19 +247,20 @@ void DecisionMaker::setup_subscribers()
 
                                           for( const auto& [id, participant] : participants.participants )
                                           {
-                                            double dx = participant.state.x - ego.x;
-                                            double dy = participant.state.y - ego.y;
+                                            // double dx = participant.state.x - ego.x;
+                                            // double dy = participant.state.y - ego.y;
 
-                                            double distance_sq = dx * dx + dy * dy;
+                                            // double distance_sq = dx * dx + dy * dy;
+                                            traffic_participants.update_traffic_participants( participant );
 
-                                            if( distance_sq <= max_distance * max_distance )
-                                            {
-                                              traffic_participants.update_traffic_participants( participant );
-                                            }
-                                            else
-                                            {
-                                              traffic_participants.participants.erase( id );
-                                            }
+                                            // if( distance_sq <= max_distance * max_distance )
+                                            // {
+                                            //   traffic_participants.update_traffic_participants( participant );
+                                            // }
+                                            // else
+                                            // {
+                                            //   traffic_participants.participants.erase( id );
+                                            // }
                                           }
                                         }
                                         else
@@ -272,7 +273,7 @@ void DecisionMaker::setup_subscribers()
                                         }
 
                                         double max_participant_age = 1.0;
-                                        traffic_participants.remove_old_participants( max_participant_age, now().seconds() );
+                                        // traffic_participants.remove_old_participants( max_participant_age, now().seconds() );
                                       });
 
   subscriber_v2x_traffic_participants = create_subscription<adore_ros2_msgs::msg::TrafficParticipantSet>( "/infrastructure/observed_traffic", 1,

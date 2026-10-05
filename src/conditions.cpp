@@ -112,6 +112,8 @@ bool road_completely_blocked(
     bool lane_blocked = false;
     double s_curr = route.value().get_s( vehicle_state_dynamic.value() );
     double object_distance = std::numeric_limits<double>::max();
+    double object_length = 0.0;
+    double object_width = 0.0;
     for( const auto& [id, participant] : traffic_participants.participants )
     {
       auto state = participant.state;
@@ -132,13 +134,15 @@ bool road_completely_blocked(
         if( distance < object_distance )
         {
           object_distance = distance;
+          object_length = participant.physical_parameters.body_length;
+          object_width = participant.physical_parameters.body_width;
         }
       }
     }
-    // std::cerr << "object distance: " << object_distance << std::endl;
+    std::cerr << "object distance: " << object_distance << " length: " << object_length << " width: " << object_width <<  std::endl;
     
     // if( object_distance < 25.0 && vehicle_state_dynamic.value().vx < 0.1 )
-    if( object_distance < 20.0 )
+    if( object_distance < 12.0 )
         lane_blocked = true;
 
     return lane_blocked;

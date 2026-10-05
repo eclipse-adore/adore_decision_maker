@@ -74,7 +74,7 @@ namespace behavior
             }
         }
 
-        dynamics::Trajectory trajectory = planner.plan_route_trajectory( route_with_signal, vehicle_state_dynamic, traffic_participants );
+        dynamics::Trajectory trajectory = planner.plan_route_trajectory( route_with_signal, vehicle_state_dynamic, traffic_participants, std::nullopt );
         trajectory.adjust_start_time( vehicle_state_dynamic.time );
 
         trajectory.label              = "driving mission";
@@ -259,9 +259,13 @@ namespace behavior
         if ( remote_operator_wants_unstructured_driving )
         {
             double s_curr = route.get_s( vehicle_state_dynamic );
-            double ego_vehicle_offset_to_lane_center = adore::math::distance_2d( vehicle_state_dynamic, route.get_pose_at_s( s_curr ) );
+            math::Point2d front_axle_pos;
+            front_axle_pos.x = vehicle_state_dynamic.x + 1.5 * math::fast_cos( vehicle_state_dynamic.yaw_angle );
+            front_axle_pos.y = vehicle_state_dynamic.y + 1.5 * math::fast_sin( vehicle_state_dynamic.yaw_angle );
+            double ego_vehicle_offset_to_lane_center = adore::math::distance_2d( front_axle_pos, route.get_pose_at_s( s_curr + 1.5 ) );
+            std::cerr << "distance to lane center: " << ego_vehicle_offset_to_lane_center << std::endl;
 
-            if ( !road_blocked && ego_vehicle_offset_to_lane_center < 0.1 )
+            if ( !road_blocked && ego_vehicle_offset_to_lane_center < 0.5 )
             {
                 remote_operator_wants_unstructured_driving = false;
             }
@@ -349,8 +353,12 @@ namespace behavior
 
         double state_s = route.get_s( vehicle_state_dynamic );
         auto   cut_route          = route.get_shortened_route( state_s, 100.0 );
-        auto   planned_trajectory = planner::waypoints_to_trajectory( vehicle_state_dynamic, cut_route, traffic_participants,
-                                                                        dynamics::PhysicalVehicleModel(planner.get_physical_vehicle_parameters()), 0.0 /* target_speed */ );
+
+        auto planned_trajectory = planner.plan_route_trajectory( route, vehicle_state_dynamic, traffic_participants, 0.0 );
+        planned_trajectory.adjust_start_time( vehicle_state_dynamic.time );
+
+        // auto   planned_trajectory = planner::waypoints_to_trajectory( vehicle_state_dynamic, cut_route, traffic_participants,
+        //                                                                 dynamics::PhysicalVehicleModel(planner.get_physical_vehicle_parameters()), 0.0 /* target_speed */ );
 
         // planned_trajectory = planning_tools.planner.optimize_trajectory( *domain.vehicle_state, planned_trajectory );
         if( planned_trajectory.states.size() < 2 )
