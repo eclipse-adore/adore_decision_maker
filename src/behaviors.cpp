@@ -52,6 +52,31 @@ namespace behavior
         // is then threaded through the obstacle-avoidance helpers below.
         dynamics::TrafficSignalSet traffic_signal_set = dynamics::conversions::to_cpp_type( traffic_signals );
         auto route_with_signal = planner.compute_traffic_light_behavior( vehicle_state_dynamic, route, traffic_signal_set );
+        std::cerr << "planner participants: " << traffic_participants.participants.size() << std::endl;
+        double s_curr = route.get_s( vehicle_state_dynamic );
+        double object_distance = std::numeric_limits<double>::max();
+        for( const auto& [id, participant] : traffic_participants.participants )
+        {
+            auto state = participant.state;
+
+            double obj_s = route.get_s( state );
+
+            double offset = adore::math::distance_2d( state, route.get_pose_at_s( obj_s ) );
+
+            if( offset > 1.5 )
+                continue;
+
+            if( obj_s > s_curr )
+            {
+                double distance = obj_s - s_curr;
+
+                if( distance < object_distance )
+                {
+                    object_distance = distance;
+                }
+            }
+        }
+        std::cerr << "object distance planner: " << object_distance <<  std::endl;
 
         // Determine weather-based speed limitation once.
         bool use_weather_comfort_settings = false;

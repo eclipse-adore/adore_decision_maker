@@ -104,7 +104,9 @@ bool odd_conditions_satisfied(
 bool road_completely_blocked(
                 const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic,
                 const std::optional<map::Route>& route,
-                const dynamics::TrafficParticipantSet& traffic_participants )
+                const dynamics::TrafficParticipantSet& traffic_participants,
+                  std::optional<double>& last_time_road_was_completely_blocked,
+                  const double& time_now )
 {
     if( !vehicle_state_dynamic.has_value() || !route.has_value() )
         return false;
@@ -114,6 +116,7 @@ bool road_completely_blocked(
     double object_distance = std::numeric_limits<double>::max();
     double object_length = 0.0;
     double object_width = 0.0;
+    std::cerr << "objects received blocked: " << traffic_participants.participants.size() << std::endl;
     for( const auto& [id, participant] : traffic_participants.participants )
     {
       auto state = participant.state;
@@ -139,12 +142,29 @@ bool road_completely_blocked(
         }
       }
     }
-    std::cerr << "object distance: " << object_distance << " length: " << object_length << " width: " << object_width <<  std::endl;
+    // if (object_distance < 15)
+    std::cerr << "object distance blocked: " << object_distance << " length: " << object_length << " width: " << object_width <<  std::endl;
     
     // if( object_distance < 25.0 && vehicle_state_dynamic.value().vx < 0.1 )
     if( object_distance < 12.0 )
         lane_blocked = true;
 
+    if ( lane_blocked )
+    {
+        last_time_road_was_completely_blocked = time_now;
+    }
+
+    if ( !lane_blocked )
+    {
+        if ( last_time_road_was_completely_blocked.has_value() )
+        {
+            if ( time_now - last_time_road_was_completely_blocked.value() < 2.0 )
+            {
+                lane_blocked = true;
+            }
+        }
+    }
+    
     return lane_blocked;
 }
 

@@ -44,7 +44,9 @@ namespace adore
         bool odd_conditions_satisfied( const std::optional<open_odd_ros2_msgs::msg::OddEvaluation>& odd, const double& time_now );
         bool road_completely_blocked( const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic,
                                       const std::optional<map::Route>& route,
-                                      const dynamics::TrafficParticipantSet& traffic_participants );
+                                      const dynamics::TrafficParticipantSet& traffic_participants,
+                                      std::optional<double>& last_time_road_was_completely_blocked,
+                                      const double& time_now );
         bool remote_operations_is_available( const std::optional<adore_ros2_msgs::msg::RemoteOperationStatus>& remote_operation_status, const double& time_now );
         bool performing_remote_operator_instrcutions( const std::optional<dynamics::Trajectory>& suggested_remote_operator_trajectory, const bool& remote_operator_wants_unstructured_driving );
         bool passenger_wants_vehicle_to_stop( const bool& passenger_emergency_stop, const bool& resume_ride_requested, const double& time_now );

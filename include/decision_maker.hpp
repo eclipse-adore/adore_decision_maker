@@ -15,6 +15,7 @@
 
 #include "behaviors.hpp"
 #include "conditions.hpp"
+#include <dynamics/traffic_participant.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 #include "dynamics/comfort_settings.hpp"
@@ -63,6 +64,7 @@ private:
   rclcpp::Subscription<adore_ros2_msgs::msg::Route>::SharedPtr subscriber_route;
   rclcpp::Subscription<open_odd_ros2_msgs::msg::OddEvaluation>::SharedPtr subscriber_odd;
   rclcpp::Subscription<adore_ros2_msgs::msg::TrafficParticipantSet>::SharedPtr subscriber_traffic_participants;
+  rclcpp::Subscription<adore_ros2_msgs::msg::TrafficParticipantSet>::SharedPtr subscriber_traffic_participants_2;
   rclcpp::Subscription<adore_ros2_msgs::msg::TrafficParticipantSet>::SharedPtr subscriber_v2x_traffic_participants;
   rclcpp::Subscription<adore_ros2_msgs::msg::Weather>::SharedPtr subscriber_weather;
   rclcpp::Subscription<adore_ros2_msgs::msg::CautionZone>::SharedPtr subscriber_unstructured_drivable_area;
@@ -128,7 +130,10 @@ private:
   std::optional<math::Polygon2d> latest_managed_zone;
 
   dynamics::TrafficParticipantSet traffic_participants;
+  dynamics::TrafficParticipantSet static_traffic_participants;
   std::optional<math::Polygon2d> unstructured_drivable_area;
+
+  std::optional<double> last_time_road_was_completely_blocked;
 
   std::optional<adore_ros2_msgs::msg::RemoteOperationStatus> remote_operation_status;
  
@@ -143,7 +148,9 @@ private:
   void setup_publishers();
   void timer_callback(); // main loop
 
-  behavior::Behavior choose_and_plan_driving_behavior();
+  behavior::Behavior choose_and_plan_driving_behavior(
+    dynamics::TrafficParticipantSet& all_traffic_participants
+  );
   void handle_passenger_request(const adore_ros2_msgs::msg::PassengerRequest& msg);
   dynamics::TrafficParticipant make_default_participant();
 
