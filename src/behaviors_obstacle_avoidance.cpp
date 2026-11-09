@@ -455,7 +455,7 @@ make_stop_on_route_behavior(
                 planner.plan_route_trajectory(
                     max_braking_route,
                     ego,
-                    traffic_participants );
+                    traffic_participants, std::nullopt );
         }
         catch( const std::exception& )
         {
@@ -1282,7 +1282,7 @@ continue_active_avoidance(
                 planner.plan_route_trajectory(
                     route_with_signal,
                     vehicle_state_dynamic,
-                    traffic_participants );
+                    traffic_participants, std::nullopt );
         }
         catch( const std::exception& )
         {
@@ -1497,7 +1497,7 @@ plan_obstacle_avoidance_behavior(
                 planner.plan_route_trajectory(
                     route_with_signal,
                     vehicle_state_dynamic,
-                    traffic_participants );
+                    traffic_participants, std::nullopt );
         }
         catch( const std::exception& )
         {
@@ -1654,7 +1654,7 @@ plan_obstacle_avoidance_behavior(
             planner.plan_route_trajectory(
                 route_with_signal,
                 vehicle_state_dynamic,
-                traffic_participants );
+                traffic_participants, std::nullopt );
     }
     catch( const std::exception& )
     {

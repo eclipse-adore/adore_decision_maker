@@ -159,17 +159,18 @@ void DecisionMaker::setup_subscribers()
                                       [this](const adore_ros2_msgs::msg::TrafficParticipantSet& msg) 
                                       {  
                                         auto participants = dynamics::conversions::to_cpp_type(msg);
-                                        for( const auto& [id, participant] : participants.participants )
-                                        {
-                                          (void)id;
-                                          // Perception owns the sensor range. Keep every
-                                          // participant it publishes instead of imposing a
-                                          // second planner-side Euclidean distance limit.
-                                          traffic_participants.update_traffic_participants( participant );
-                                        }
+                                        traffic_participants = participants;
 
-                                        double max_participant_age = 1.0;
-                                        traffic_participants.remove_old_participants( max_participant_age, now().seconds() );
+                                      });
+  
+  subscriber_traffic_participants_2 = create_subscription<adore_ros2_msgs::msg::TrafficParticipantSet>( "traffic_participants2", 1,
+                                      [this](const adore_ros2_msgs::msg::TrafficParticipantSet& msg) 
+                                      {  
+                                        auto participants = dynamics::conversions::to_cpp_type(msg);
+                                        static_traffic_participants = participants;
+                                        
+                                        // double max_participant_age = 2.0;
+                                        // traffic_participants.remove_old_participants( max_participant_age, now().seconds() );
                                       });
 
   subscriber_v2x_traffic_participants = create_subscription<adore_ros2_msgs::msg::TrafficParticipantSet>( "/infrastructure/observed_traffic", 1,
@@ -214,6 +215,12 @@ void DecisionMaker::setup_subscribers()
 
   subscriber_weather = create_subscription<adore_ros2_msgs::msg::Weather>( "weather", 1,
                                       [this](const adore_ros2_msgs::msg::Weather& msg) {  latest_weather = msg; });
+
+  subscriber_can_drive_unstructured = create_subscription<std_msgs::msg::Bool>("can_drive_unstructured", 1, 
+                                      [this](const std_msgs::msg::Bool& msg) { 
+                                        remote_operator_wants_unstructured_driving  = msg.data; 
+                                        std::cerr << "decision maker got a request to drive unstructured" << std::endl;
+                                      });
 
   subscriber_suggested_remote_operator_trajectory = create_subscription<adore_ros2_msgs::msg::Trajectory>( "suggested_remote_operator_trajectory", 1,
                                       [this](const adore_ros2_msgs::msg::Trajectory& msg) { 
@@ -279,13 +286,17 @@ void DecisionMaker::setup_subscribers()
 
   subscriber_remote_operation_status = create_subscription<adore_ros2_msgs::msg::RemoteOperationStatus>( "remote_operation_status", 1,
                                     [this](const adore_ros2_msgs::msg::RemoteOperationStatus& msg) {  remote_operation_status = msg; });
+
+  subscriber_driving_evacuation = create_subscription<std_msgs::msg::Bool>( "driving_evacuation", 1,
+                                    [this](const std_msgs::msg::Bool& msg) {  driving_evacuation = msg.data; });
 }
 
 void DecisionMaker::setup_publishers()
 {
   publisher_trajectory_decision = create_publisher<adore_ros2_msgs::msg::Trajectory>( "trajectory_decision", 1 );
   publisher_alternative_trajectory_decision = create_publisher<adore_ros2_msgs::msg::Trajectory>( "alternative_trajectory_decision", 1 );
-    publisher_modified_route = create_publisher<adore_ros2_msgs::msg::Route>( "modified_route", 1 );
+  publisher_modified_route = create_publisher<adore_ros2_msgs::msg::Route>( "modified_route", 1 );
+  publisher_decision_overview = create_publisher<std_msgs::msg::String>( "decision_overview", 1 );
   publisher_v2x_traffic_participant = create_publisher<adore_ros2_msgs::msg::TrafficParticipant>( "v2x_traffic_participant", 1 );
   publisher_planning_cycle_runtime_ms =
     create_publisher<std_msgs::msg::Float64>( "planning_cycle_runtime_ms", 10 );
@@ -293,8 +304,15 @@ void DecisionMaker::setup_publishers()
 
 void DecisionMaker::timer_callback()
 {
+  dynamics::TrafficParticipantSet all_traffic_participants = traffic_participants;
+  
+  for( const auto& [id, participant] : static_traffic_participants.participants )
+  {
+    all_traffic_participants.update_traffic_participants( participant );
+  }
+  
   const auto planning_start = std::chrono::steady_clock::now();
-  auto behavior = choose_and_plan_driving_behavior();
+  auto behavior = choose_and_plan_driving_behavior( all_traffic_participants );
   const auto planning_end = std::chrono::steady_clock::now();
 
   std_msgs::msg::Float64 runtime_message;
@@ -303,6 +321,9 @@ void DecisionMaker::timer_callback()
   publisher_planning_cycle_runtime_ms->publish( runtime_message );
 
   publisher_trajectory_decision->publish(behavior.trajectory);
+  std_msgs::msg::String decision_overview;
+  decision_overview.data = behavior.decision_overview;
+  publisher_decision_overview->publish(decision_overview);
     if ( behavior.modified_route.has_value() )
     {
         publisher_modified_route->publish( behavior.modified_route.value() );
@@ -322,7 +343,9 @@ void DecisionMaker::timer_callback()
   // @TODO, add a cleanup step, that removes old caution zones and old suggested trajectories, old safety corridors
 }
 
-behavior::Behavior DecisionMaker::choose_and_plan_driving_behavior()
+behavior::Behavior DecisionMaker::choose_and_plan_driving_behavior(
+    dynamics::TrafficParticipantSet& all_traffic_participants
+)
 {
   double time_now = now().seconds();
 
@@ -331,9 +354,11 @@ behavior::Behavior DecisionMaker::choose_and_plan_driving_behavior()
   bool needs_to_avoid_safety_corridor = conditions::needs_to_avoid_safety_corridor(latest_vehicle_state_dynamic, latest_safety_corridor);
   bool can_drive_managed = conditions::can_drive_managed(latest_vehicle_state_dynamic, time_now, latest_managed_zone, latest_managed_trajectory);
   bool odd_conditions_satisfied = conditions::odd_conditions_satisfied(latest_odd, time_now);
-  bool must_drive_unstructured = conditions::must_drive_unstructured( latest_vehicle_state_dynamic, unstructured_drivable_area );
+  bool road_completely_blocked = conditions::road_completely_blocked( latest_vehicle_state_dynamic, latest_route, all_traffic_participants, last_time_road_was_completely_blocked, time_now );
   bool remote_operation_is_available = conditions::remote_operations_is_available( remote_operation_status, time_now );
+  bool performing_remote_operator_instrcutions = conditions::performing_remote_operator_instrcutions( suggested_remote_operator_trajectory, remote_operator_wants_unstructured_driving);
   bool passenger_wants_vehicle_to_stand_still = conditions::passenger_wants_vehicle_to_stop( passenger_emergency_stop, resume_ride_requested, time_now );
+  bool must_evacuate = conditions::is_evacuating( driving_evacuation, odd_conditions_satisfied, road_completely_blocked, performing_remote_operator_instrcutions );
 
   if (
       has_localization &&
@@ -347,7 +372,7 @@ behavior::Behavior DecisionMaker::choose_and_plan_driving_behavior()
                                   planner, 
                                   latest_vehicle_state_dynamic.value(), 
                                   latest_route.value(), 
-                                  traffic_participants,
+                                  all_traffic_participants,
                                   latest_odd
                               );
   }
@@ -361,40 +386,66 @@ behavior::Behavior DecisionMaker::choose_and_plan_driving_behavior()
     return behavior::avoiding_safety_corridor(
                                 planner,
                                 latest_vehicle_state_dynamic.value(),
-                                traffic_participants,
+                                all_traffic_participants,
                                 latest_safety_corridor.value()
     );
   }
 
-  if ( 
-      must_drive_unstructured &&
-      has_localization 
-    )
-  {
-    active_avoidance_state.reset();
-    return behavior::driving_unstructured(
-                                unstructured_planner,
-                                latest_vehicle_state_dynamic.value(),
-                                latest_route.value(),
-                                traffic_participants,
-                                unstructured_drivable_area
-    );
-  }
+  // if (
+  //     drive_unstructured && 
+  //     !can_drive_unstructured
+  //   )
+  // {
+  //   adore::behavior::Behavior trajectory_and_signal = behavior::driving_unstructured(
+  //                               unstructured_planner,
+  //                               latest_vehicle_state_dynamic.value(),
+  //                               latest_route.value(),
+  //                               traffic_participants,
+  //                               unstructured_drivable_area);
+  //   trajectory_and_signal.trajectory.label = "remote operations (waiting for approval for unstructured driving)";
+
+  //   for( int i=0; i<trajectory_and_signal.trajectory.states.size(); i++ )
+  //   {
+  //     trajectory_and_signal.trajectory.states[i].vx = 0.0;
+  //     trajectory_and_signal.trajectory.states[i].ax = 0.0;
+  //   }
+    
+  //   return trajectory_and_signal;
+  // }
+
+  // if ( 
+  //     can_drive_unstructured &&
+  //     keep_unstructured 
+  //   )
+  // {
+  //   driving_unstructured = true;
+  //   return behavior::driving_unstructured(
+  //                               unstructured_planner,
+  //                               latest_vehicle_state_dynamic.value(),
+  //                               latest_route.value(),
+  //                               traffic_participants,
+  //                               unstructured_drivable_area
+  //   );
+  // }
 
   if (
       has_localization &&
       has_mission &&
-      !odd_conditions_satisfied &&
+      (!odd_conditions_satisfied || road_completely_blocked || performing_remote_operator_instrcutions ) &&
       remote_operation_is_available 
     )
   {
     active_avoidance_state.reset();
     return behavior::remote_operations(
                                 planner,
+                                unstructured_planner,
                                 latest_vehicle_state_dynamic.value(),
                                 latest_route.value(),
-                                traffic_participants,
-                                suggested_remote_operator_trajectory
+                                all_traffic_participants,
+                                suggested_remote_operator_trajectory,
+                                remote_operator_wants_unstructured_driving,
+                                odd_conditions_satisfied,
+                                road_completely_blocked
     );
   }
 
@@ -421,16 +472,19 @@ behavior::Behavior DecisionMaker::choose_and_plan_driving_behavior()
       odd_conditions_satisfied
   )
   {
+    // driving_unstructured = false;
+    // can_drive_unstructured = false;
     return behavior::driving_mission(
                                 planner,
                                 latest_vehicle_state_dynamic.value(),
                                 latest_route.value(),
-                                traffic_participants,
+                                all_traffic_participants,
                                 comfort_settings,
                                 traffic_signals,
                                 latest_weather,
                                 obstacle_avoidance_params,
-                                active_avoidance_state
+                                active_avoidance_state,
+                                must_evacuate
                               );
   }
 
@@ -443,7 +497,7 @@ behavior::Behavior DecisionMaker::choose_and_plan_driving_behavior()
     return behavior::waiting_for_mission(
                                 planner,
                                 latest_vehicle_state_dynamic.value(),
-                                traffic_participants
+                                all_traffic_participants
                               );
   }
 
@@ -457,7 +511,7 @@ behavior::Behavior DecisionMaker::choose_and_plan_driving_behavior()
                                   planner, 
                                   latest_vehicle_state_dynamic.value(), 
                                   latest_route.value(), 
-                                  traffic_participants,
+                                  all_traffic_participants,
                                   latest_odd
                               );
   }

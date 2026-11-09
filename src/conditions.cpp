@@ -101,16 +101,71 @@ bool odd_conditions_satisfied(
     return odd.value().match;
 }
 
-bool must_drive_unstructured( const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic, 
-                             const math::Polygon2d& unstructured_drivable_area )
+bool road_completely_blocked(
+                const std::optional<dynamics::VehicleStateDynamic>& vehicle_state_dynamic,
+                const std::optional<map::Route>& route,
+                const dynamics::TrafficParticipantSet& traffic_participants,
+                  std::optional<double>& last_time_road_was_completely_blocked,
+                  const double& time_now )
 {
-    if( !vehicle_state_dynamic.has_value() )
-        return false;
-
-    if( vehicle_state_dynamic.value().vx < 0.1 && !unstructured_drivable_area.point_inside( vehicle_state_dynamic.value() ) )
+    if( !vehicle_state_dynamic.has_value() || !route.has_value() )
         return false;
     
-    return unstructured_drivable_area.points.size() > 2;
+    bool lane_blocked = false;
+    double s_curr = route.value().get_s( vehicle_state_dynamic.value() );
+    double object_distance = std::numeric_limits<double>::max();
+    double object_length = 0.0;
+    double object_width = 0.0;
+    std::cerr << "objects received blocked: " << traffic_participants.participants.size() << std::endl;
+    for( const auto& [id, participant] : traffic_participants.participants )
+    {
+      auto state = participant.state;
+      if( state.vx > 0.2 )
+        continue;
+
+      double obj_s = route.value().get_s( state );
+
+      double offset = adore::math::distance_2d( state, route.value().get_pose_at_s( obj_s ) );
+
+      if( offset > 1.5 )
+        continue;
+
+      if( obj_s > s_curr )
+      {
+        double distance = obj_s - s_curr;
+
+        if( distance < object_distance )
+        {
+          object_distance = distance;
+          object_length = participant.physical_parameters.body_length;
+          object_width = participant.physical_parameters.body_width;
+        }
+      }
+    }
+    // if (object_distance < 15)
+    std::cerr << "object distance blocked: " << object_distance << " length: " << object_length << " width: " << object_width <<  std::endl;
+    
+    // if( object_distance < 25.0 && vehicle_state_dynamic.value().vx < 0.1 )
+    if( object_distance < 12.0 )
+        lane_blocked = true;
+
+    if ( lane_blocked )
+    {
+        last_time_road_was_completely_blocked = time_now;
+    }
+
+    if ( !lane_blocked )
+    {
+        if ( last_time_road_was_completely_blocked.has_value() )
+        {
+            if ( time_now - last_time_road_was_completely_blocked.value() < 2.0 )
+            {
+                lane_blocked = true;
+            }
+        }
+    }
+    
+    return lane_blocked;
 }
 
 bool remote_operations_is_available( const std::optional<adore_ros2_msgs::msg::RemoteOperationStatus>& remote_operation_status, const double& time_now )
@@ -128,6 +183,11 @@ bool remote_operations_is_available( const std::optional<adore_ros2_msgs::msg::R
     return true;
 }
 
+bool performing_remote_operator_instrcutions( const std::optional<dynamics::Trajectory>& suggested_remote_operator_trajectory, const bool& remote_operator_wants_unstructured_driving ) 
+{
+    return (suggested_remote_operator_trajectory.has_value() || remote_operator_wants_unstructured_driving);
+}
+
 bool passenger_wants_vehicle_to_stop( const bool& passenger_emergency_stop, const bool& resume_ride_requested, const double& time_now )
 {
     // @TODO, needs a time check to make sure the request is not super old
@@ -138,6 +198,11 @@ bool passenger_wants_vehicle_to_stop( const bool& passenger_emergency_stop, cons
     }
 
     return false;
+}
+
+bool is_evacuating( const bool& evacuation_is_active, const bool& odd_conditions_satisfied, const bool& road_comletely_blocked, const bool& driving_remote_operator_instructions )
+{
+    return evacuation_is_active && odd_conditions_satisfied && !road_comletely_blocked && !driving_remote_operator_instructions;
 }
 
 } // namespace conditions
