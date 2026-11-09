@@ -116,6 +116,16 @@ namespace behavior
             }
         }
 
+        const auto with_evacuation_label =
+            [&]( Behavior behavior )
+            {
+                if( must_evacuate && !behavior.trajectory.label.empty() )
+                {
+                    behavior.trajectory.label =
+                        "evacuate - " + behavior.trajectory.label;
+                }
+                return behavior;
+            };
         const auto with_weather_label =
             [&]( Behavior behavior )
             {
@@ -125,7 +135,7 @@ namespace behavior
                     behavior.trajectory.label +=
                         " (" + weather_label + ")";
                 }
-                return behavior;
+                return with_evacuation_label( behavior );
             };
 
         // Hard OA bypass: disabling obstacle avoidance cancels a previously
@@ -168,7 +178,7 @@ namespace behavior
         // -------------------------------------------------------------------------
         if( active_avoidance_state.active )
         {
-            return continue_active_avoidance(
+            return with_evacuation_label( continue_active_avoidance(
                 planner,
                 vehicle_state_dynamic,
                 route_for_planning,
@@ -176,7 +186,7 @@ namespace behavior
                 params_for_obstacle_avoidance,
                 use_weather_comfort_settings,
                 weather_label,
-                active_avoidance_state );
+                active_avoidance_state ) );
         }
 
         if( auto ego_lane_behavior =
