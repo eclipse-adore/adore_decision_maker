@@ -21,6 +21,7 @@
 
 #include "adore_ros2_msgs/msg/trajectory.hpp"
 #include "adore_ros2_msgs/msg/route.hpp"
+#include "adore_ros2_msgs/msg/goal_point.hpp"
 #include "adore_ros2_msgs/msg/vehicle_signals.hpp"
 #include "adore_ros2_msgs/msg/traffic_signal.hpp"
 #include "adore_ros2_msgs/msg/traffic_signals.hpp"
@@ -49,8 +50,9 @@ namespace behavior
     {
         adore_ros2_msgs::msg::Trajectory trajectory;
         std::optional<adore_ros2_msgs::msg::Trajectory> alternative_trajectory;
-    std::optional<adore_ros2_msgs::msg::Route> modified_route;
+        std::optional<adore_ros2_msgs::msg::Route> modified_route;
         adore_ros2_msgs::msg::VehicleSignals signals;
+        std::string decision_overview;
     };
 
     const double MAX_DISTANCE_TO_LAST_TRAJECTORY_POINT_BEFORE_RETURNING_TO_REMOTE_OPERATIONS_DRIVING = 1.0;
@@ -65,7 +67,8 @@ namespace behavior
                                 const adore_ros2_msgs::msg::TrafficSignals& traffic_signals,
                                 const std::optional<adore_ros2_msgs::msg::Weather>& weather,
                                 const planner::ObstacleAvoidanceParams& obstacle_avoidance_params,
-                                planner::ActiveAvoidanceState& active_avoidance_state
+                                planner::ActiveAvoidanceState& active_avoidance_state,
+                                const bool& must_evacuate
     );
 
     Behavior driving_unstructured(
@@ -73,7 +76,7 @@ namespace behavior
                                 const dynamics::VehicleStateDynamic& vehicle_state_dynamic,
                                 const map::Route& route,
                                 const dynamics::TrafficParticipantSet& traffic_participants,
-                                const math::Polygon2d& drivable_area 
+                                const std::optional<math::Polygon2d>& drivable_area 
     );
 
     Behavior driving_mission_following_managed(
@@ -91,10 +94,14 @@ namespace behavior
     
     Behavior remote_operations(
                                 planner::TrajectoryPlanner& planner,
+                                planner::HybridAStarPlanner& astar_planner,
                                 const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
                                 const map::Route& route,
                                 const dynamics::TrafficParticipantSet& traffic_participants,
-                                std::optional<dynamics::Trajectory>& suggested_remote_operator_trajectory
+                                std::optional<dynamics::Trajectory>& suggested_remote_operator_trajectory,
+                                bool& remote_operator_wants_unstructured_driving,
+                                const bool& odd_conditions_satisfied,
+                                const bool& road_blocked
     );
 
     dynamics::Trajectory get_alternative_trajectory_in_remote_operations(

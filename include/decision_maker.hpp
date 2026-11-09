@@ -15,17 +15,20 @@
 
 #include "behaviors.hpp"
 #include "conditions.hpp"
+#include <dynamics/traffic_participant.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 #include "dynamics/comfort_settings.hpp"
 #include "planning/trajectory_planner.hpp"
 #include "adore_ros2_msgs/msg/caution_zone.hpp"
 #include "adore_ros2_msgs/msg/route.hpp"
+#include "adore_ros2_msgs/msg/goal_point.hpp"
 #include "adore_ros2_msgs/msg/traffic_participant.hpp"
 #include "adore_ros2_msgs/msg/traffic_participant_set.hpp"
 #include "adore_ros2_msgs/msg/weather.hpp"
 #include <adore_math/polygon.h>
 #include "std_msgs/msg/bool.hpp"
+#include "std_msgs/msg/string.hpp"
 #include "adore_ros2_msgs/msg/passenger_request.hpp"
 #include <dynamics/comfort_settings.hpp>
 #include "adore_ros2_msgs/msg/mission_command.hpp"
@@ -61,6 +64,7 @@ private:
   rclcpp::Subscription<adore_ros2_msgs::msg::Route>::SharedPtr subscriber_route;
   rclcpp::Subscription<open_odd_ros2_msgs::msg::OddEvaluation>::SharedPtr subscriber_odd;
   rclcpp::Subscription<adore_ros2_msgs::msg::TrafficParticipantSet>::SharedPtr subscriber_traffic_participants;
+  rclcpp::Subscription<adore_ros2_msgs::msg::TrafficParticipantSet>::SharedPtr subscriber_traffic_participants_2;
   rclcpp::Subscription<adore_ros2_msgs::msg::TrafficParticipantSet>::SharedPtr subscriber_v2x_traffic_participants;
   rclcpp::Subscription<adore_ros2_msgs::msg::Weather>::SharedPtr subscriber_weather;
   rclcpp::Subscription<adore_ros2_msgs::msg::CautionZone>::SharedPtr subscriber_unstructured_drivable_area;
@@ -76,7 +80,9 @@ private:
   // Remote operations subscribers
   rclcpp::Subscription<adore_ros2_msgs::msg::CautionZone>::SharedPtr subscriber_caution_zones;
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr subscriber_remote_operator_drive_approval;
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr subscriber_can_drive_unstructured;
   rclcpp::Subscription<adore_ros2_msgs::msg::Trajectory>::SharedPtr subscriber_suggested_remote_operator_trajectory;
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr subscriber_driving_evacuation;
 
   rclcpp::Subscription<adore_ros2_msgs::msg::RemoteOperationStatus>::SharedPtr subscriber_remote_operation_status;
   // rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr       subscriber_automation_toggle;
@@ -92,7 +98,8 @@ private:
 
   rclcpp::Publisher<adore_ros2_msgs::msg::Trajectory>::SharedPtr publisher_trajectory_decision;
   rclcpp::Publisher<adore_ros2_msgs::msg::Trajectory>::SharedPtr publisher_alternative_trajectory_decision;
-    rclcpp::Publisher<adore_ros2_msgs::msg::Route>::SharedPtr publisher_modified_route;
+  rclcpp::Publisher<adore_ros2_msgs::msg::Route>::SharedPtr publisher_modified_route;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_decision_overview;
   rclcpp::Publisher<adore_ros2_msgs::msg::TrafficParticipant>::SharedPtr publisher_v2x_traffic_participant;
 
   // Planning
@@ -109,6 +116,10 @@ private:
   std::optional<dynamics::Trajectory> suggested_remote_operator_trajectory; // A trajectory received by a remote operator
   bool passenger_emergency_stop = false;
   bool resume_ride_requested = false;
+  // bool driving_unstructured = true;
+  bool remote_operator_wants_unstructured_driving = false;
+  bool driving_evacuation = false;
+  // bool keep_unstructured = false;
   std::optional<adore_ros2_msgs::msg::SafetyCorridor> latest_safety_corridor;
   std::optional<dynamics::Trajectory> latest_reference_trajectory;
   std::optional<open_odd_ros2_msgs::msg::OddEvaluation> latest_odd;
@@ -119,7 +130,10 @@ private:
   std::optional<math::Polygon2d> latest_managed_zone;
 
   dynamics::TrafficParticipantSet traffic_participants;
-  math::Polygon2d unstructured_drivable_area; // @TODO, make either optional or a hashmap
+  dynamics::TrafficParticipantSet static_traffic_participants;
+  std::optional<math::Polygon2d> unstructured_drivable_area;
+
+  std::optional<double> last_time_road_was_completely_blocked;
 
   std::optional<adore_ros2_msgs::msg::RemoteOperationStatus> remote_operation_status;
  
@@ -134,7 +148,9 @@ private:
   void setup_publishers();
   void timer_callback(); // main loop
 
-  behavior::Behavior choose_and_plan_driving_behavior();
+  behavior::Behavior choose_and_plan_driving_behavior(
+    dynamics::TrafficParticipantSet& all_traffic_participants
+  );
   void handle_passenger_request(const adore_ros2_msgs::msg::PassengerRequest& msg);
   dynamics::TrafficParticipant make_default_participant();
 

@@ -42,7 +42,8 @@ namespace behavior
             const adore_ros2_msgs::msg::TrafficSignals& traffic_signals,
             const std::optional<adore_ros2_msgs::msg::Weather>& weather,
             const planner::ObstacleAvoidanceParams& params_for_obstacle_avoidance,
-            planner::ActiveAvoidanceState& active_avoidance_state )
+            planner::ActiveAvoidanceState& active_avoidance_state,
+            const bool& must_evacuate )
     {
 
         planner.set_comfort_settings( comfort_settings );
@@ -51,6 +52,31 @@ namespace behavior
         // is then threaded through the obstacle-avoidance helpers below.
         dynamics::TrafficSignalSet traffic_signal_set = dynamics::conversions::to_cpp_type( traffic_signals );
         auto route_with_signal = planner.compute_traffic_light_behavior( vehicle_state_dynamic, route, traffic_signal_set );
+        std::cerr << "planner participants: " << traffic_participants.participants.size() << std::endl;
+        double s_curr = route.get_s( vehicle_state_dynamic );
+        double object_distance = std::numeric_limits<double>::max();
+        for( const auto& [id, participant] : traffic_participants.participants )
+        {
+            auto state = participant.state;
+
+            double obj_s = route.get_s( state );
+
+            double offset = adore::math::distance_2d( state, route.get_pose_at_s( obj_s ) );
+
+            if( offset > 1.5 )
+                continue;
+
+            if( obj_s > s_curr )
+            {
+                double distance = obj_s - s_curr;
+
+                if( distance < object_distance )
+                {
+                    object_distance = distance;
+                }
+            }
+        }
+        std::cerr << "object distance planner: " << object_distance <<  std::endl;
 
         // Determine weather-based speed limitation once.
         bool use_weather_comfort_settings = false;
@@ -72,6 +98,19 @@ namespace behavior
                 weather_label = "carefully due to rain";
             }
         }
+
+        dynamics::Trajectory trajectory = planner.plan_route_trajectory( route_with_signal, vehicle_state_dynamic, traffic_participants, std::nullopt );
+        trajectory.adjust_start_time( vehicle_state_dynamic.time );
+
+        trajectory.label              = "driving mission";
+        if ( must_evacuate )
+        {
+            trajectory.label = "evacuate - driving mission";
+        }
+
+        Behavior trajectory_and_signal;
+        trajectory_and_signal.trajectory = dynamics::conversions::to_ros_msg( trajectory );
+        return trajectory_and_signal;
 
         // -------------------------------------------------------------------------
         // OA invariant:
@@ -149,25 +188,26 @@ namespace behavior
                                 const dynamics::VehicleStateDynamic& vehicle_state_dynamic,
                                 const map::Route& route,
                                 const dynamics::TrafficParticipantSet& traffic_participants,
-                                const math::Polygon2d& drivable_area
+                                const std::optional<math::Polygon2d>& drivable_area
                            )
     {
         Behavior trajectory_and_signal;
 
-        // planner.set_goal( 605050.90, 5795017.68 );
-        planner.set_goal( route, drivable_area, vehicle_state_dynamic );
         rclcpp::Clock clock;
         double now_time = clock.now().seconds();
-        auto                 result             = planner.plan_trajectory( vehicle_state_dynamic, traffic_participants, drivable_area, route );
+        auto                 result             = planner.plan_trajectory( vehicle_state_dynamic, traffic_participants, std::nullopt, route );
+        trajectory_and_signal.decision_overview = result.planner_message;
+        trajectory_and_signal.decision_overview += " time taken for unstructured planner: " + std::to_string( clock.now().seconds() - now_time );
         if( !result.trajectory.has_value() )
         {
-            std::cerr << "no trajectory planned to reach the goal" << std::endl;
+            // std::cerr << "no trajectory planned to reach the goal" << std::endl;
+            trajectory_and_signal.decision_overview += " no trajectory planned to reach the goal";
             planner::TrajectoryPlanner emergency_planner;
             return behavior::emergency( emergency_planner, vehicle_state_dynamic );
         }
         dynamics::Trajectory planned_trajectory = result.trajectory.value();
         planned_trajectory.adjust_start_time( vehicle_state_dynamic.time );
-        planned_trajectory.label = "Unstructured Planner";
+        planned_trajectory.label = "remote operations (driving remote operator unstructured command)";
         trajectory_and_signal.modified_route = map::conversions::to_ros_msg( result.modified_route );
         trajectory_and_signal.trajectory = dynamics::conversions::to_ros_msg( planned_trajectory );
 
@@ -207,13 +247,18 @@ namespace behavior
 
     Behavior remote_operations(
                                 planner::TrajectoryPlanner& planner,
+                                planner::HybridAStarPlanner& astar_planner,
                                 const dynamics::VehicleStateDynamic& vehicle_state_dynamic,  
                                 const map::Route& route,
                                 const dynamics::TrafficParticipantSet& traffic_participants,
-                                std::optional<dynamics::Trajectory>& suggested_remote_operator_trajectory
+                                std::optional<dynamics::Trajectory>& suggested_remote_operator_trajectory,
+                                bool& remote_operator_wants_unstructured_driving,
+                                const bool& odd_conditions_satisfied,
+                                const bool& road_blocked
     )
     {
         Behavior trajectory_and_signals;
+
 
         if ( suggested_remote_operator_trajectory.has_value() )
         {
@@ -225,7 +270,7 @@ namespace behavior
                     adore::math::distance_2d(trajectory.states.back(), vehicle_state_dynamic) > MAX_DISTANCE_TO_LAST_TRAJECTORY_POINT_BEFORE_RETURNING_TO_REMOTE_OPERATIONS_DRIVING
                 )
                 {
-                    trajectory.label              = "remote operations (driving remote operator instructions)";
+                    trajectory.label              = "remote operations (driving remote operator trajectory)";
                     trajectory_and_signals.trajectory = dynamics::conversions::to_ros_msg(trajectory);
 
                     return trajectory_and_signals;
@@ -236,6 +281,35 @@ namespace behavior
             }
         }
 
+        if ( remote_operator_wants_unstructured_driving )
+        {
+            double s_curr = route.get_s( vehicle_state_dynamic );
+            math::Point2d front_axle_pos;
+            front_axle_pos.x = vehicle_state_dynamic.x + 1.5 * math::fast_cos( vehicle_state_dynamic.yaw_angle );
+            front_axle_pos.y = vehicle_state_dynamic.y + 1.5 * math::fast_sin( vehicle_state_dynamic.yaw_angle );
+            double ego_vehicle_offset_to_lane_center = adore::math::distance_2d( front_axle_pos, route.get_pose_at_s( s_curr + 1.5 ) );
+            std::cerr << "distance to lane center: " << ego_vehicle_offset_to_lane_center << std::endl;
+
+            if ( !road_blocked && ego_vehicle_offset_to_lane_center < 0.5 )
+            {
+                remote_operator_wants_unstructured_driving = false;
+            }
+
+            return driving_unstructured(astar_planner, vehicle_state_dynamic, route, traffic_participants, {});
+        }
+
+        std::string remote_operation_reason_affix;
+
+        if ( !odd_conditions_satisfied )
+        {
+            remote_operation_reason_affix = "ODD failure";
+        }
+
+        if ( road_blocked )
+        {
+            remote_operation_reason_affix = "road blocked";
+        }
+
         trajectory_and_signals = minimum_risk(
             planner,
             vehicle_state_dynamic,
@@ -243,9 +317,9 @@ namespace behavior
             traffic_participants,
             {}
         );
-        trajectory_and_signals.trajectory.label = "remote operations (waiting for remote operator instructions)";
+        trajectory_and_signals.trajectory.label = "remote operations : " + remote_operation_reason_affix + " - " + "(waiting for remote operator instructions)";
 
-        if ( vehicle_state_dynamic.vx < 0.5 ) // Should first send alternative trajectories when standing still
+        if ( vehicle_state_dynamic.vx < 0.5 && !road_blocked ) // Should first send alternative trajectories when standing still
         {
             trajectory_and_signals.alternative_trajectory = dynamics::conversions::to_ros_msg(
                                                                                               get_alternative_trajectory_in_remote_operations(
@@ -253,6 +327,23 @@ namespace behavior
                                                                                                   vehicle_state_dynamic, 
                                                                                                   route, 
                                                                                                   traffic_participants));
+        }
+        else if ( vehicle_state_dynamic.vx < 0.5 && road_blocked ) // Should first send alternative trajectories when standing still and needs unstructured driving
+        {
+            Behavior behavior = driving_unstructured(astar_planner, vehicle_state_dynamic, route, traffic_participants, {});
+            dynamics::Trajectory unstructured_trajectory;
+            if( behavior.modified_route.has_value() )
+            {
+                for( int i=0; i< behavior.modified_route.value().center_points.size(); i++ )
+                {
+                    dynamics::VehicleStateDynamic alternate_trajectory_state;
+                    alternate_trajectory_state.x = behavior.modified_route.value().center_points[i].x;
+                    alternate_trajectory_state.y = behavior.modified_route.value().center_points[i].y;
+                    unstructured_trajectory.states.push_back( alternate_trajectory_state );
+                }
+            }
+            trajectory_and_signals.alternative_trajectory = dynamics::conversions::to_ros_msg( unstructured_trajectory );
+            trajectory_and_signals.modified_route = behavior.modified_route;
         }
 
         return trajectory_and_signals;
@@ -287,8 +378,12 @@ namespace behavior
 
         double state_s = route.get_s( vehicle_state_dynamic );
         auto   cut_route          = route.get_shortened_route( state_s, 100.0 );
-        auto   planned_trajectory = planner::waypoints_to_trajectory( vehicle_state_dynamic, cut_route, traffic_participants,
-                                                                        dynamics::PhysicalVehicleModel(planner.get_physical_vehicle_parameters()), 0.0 /* target_speed */ );
+
+        auto planned_trajectory = planner.plan_route_trajectory( route, vehicle_state_dynamic, traffic_participants, 0.0 );
+        planned_trajectory.adjust_start_time( vehicle_state_dynamic.time );
+
+        // auto   planned_trajectory = planner::waypoints_to_trajectory( vehicle_state_dynamic, cut_route, traffic_participants,
+        //                                                                 dynamics::PhysicalVehicleModel(planner.get_physical_vehicle_parameters()), 0.0 /* target_speed */ );
 
         // planned_trajectory = planning_tools.planner.optimize_trajectory( *domain.vehicle_state, planned_trajectory );
         if( planned_trajectory.states.size() < 2 )
