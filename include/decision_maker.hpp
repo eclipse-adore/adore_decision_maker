@@ -32,6 +32,8 @@
 #include "adore_ros2_msgs/msg/passenger_request.hpp"
 #include <dynamics/comfort_settings.hpp>
 #include "adore_ros2_msgs/msg/mission_command.hpp"
+#include "std_msgs/msg/float64.hpp"
+#include "std_msgs/msg/string.hpp"
 #include "planning/obstacle_avoidance.hpp"
 #include "adore_map_conversions.hpp"
 #include "planning/unstructured_planner.hpp"
@@ -83,8 +85,8 @@ private:
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr subscriber_can_drive_unstructured;
   rclcpp::Subscription<adore_ros2_msgs::msg::Trajectory>::SharedPtr subscriber_suggested_remote_operator_trajectory;
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr subscriber_driving_evacuation;
-
   rclcpp::Subscription<adore_ros2_msgs::msg::RemoteOperationStatus>::SharedPtr subscriber_remote_operation_status;
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr subscriber_user_input;
   // rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr       subscriber_automation_toggle;
 
 
@@ -101,6 +103,7 @@ private:
   rclcpp::Publisher<adore_ros2_msgs::msg::Route>::SharedPtr publisher_modified_route;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_decision_overview;
   rclcpp::Publisher<adore_ros2_msgs::msg::TrafficParticipant>::SharedPtr publisher_v2x_traffic_participant;
+  rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr publisher_planning_cycle_runtime_ms;
 
   // Planning
   planner::TrajectoryPlanner planner; // @TODO Think most of these can be removed
