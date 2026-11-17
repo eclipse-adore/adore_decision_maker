@@ -31,7 +31,6 @@
 #include "std_msgs/msg/string.hpp"
 #include "adore_ros2_msgs/msg/passenger_request.hpp"
 #include <dynamics/comfort_settings.hpp>
-#include "adore_ros2_msgs/msg/mission_command.hpp"
 #include "std_msgs/msg/float64.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "planning/obstacle_avoidance.hpp"
@@ -92,7 +91,6 @@ private:
 
   //passenger request subscribers
   rclcpp::Subscription<adore_ros2_msgs::msg::PassengerRequest>::SharedPtr subscriber_passenger_request;
-  // rclcpp::Subscription<adore_ros2_msgs::msg::MissionCommand>::SharedPtr subscriber_mission_command;
 
   int v2x_id = 0;
 
@@ -104,6 +102,9 @@ private:
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_decision_overview;
   rclcpp::Publisher<adore_ros2_msgs::msg::TrafficParticipant>::SharedPtr publisher_v2x_traffic_participant;
   rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr publisher_planning_cycle_runtime_ms;
+
+  // Feedback for the passenger interface
+  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr publisher_emergency_stop_started;
 
   // Planning
   planner::TrajectoryPlanner planner; // @TODO Think most of these can be removed
@@ -155,6 +156,7 @@ private:
     dynamics::TrafficParticipantSet& all_traffic_participants
   );
   void handle_passenger_request(const adore_ros2_msgs::msg::PassengerRequest& msg);
+  void publish_emergency_stop_started(bool started);
   dynamics::TrafficParticipant make_default_participant();
 
   adore::planner::ObstacleAvoidanceParams obstacle_avoidance_params;

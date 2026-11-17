@@ -300,6 +300,7 @@ void DecisionMaker::setup_publishers()
   publisher_v2x_traffic_participant = create_publisher<adore_ros2_msgs::msg::TrafficParticipant>( "v2x_traffic_participant", 1 );
   publisher_planning_cycle_runtime_ms =
     create_publisher<std_msgs::msg::Float64>( "planning_cycle_runtime_ms", 10 );
+  publisher_emergency_stop_started = create_publisher<std_msgs::msg::Bool>( "emergency_stop_started", 1 );
 }
 
 void DecisionMaker::timer_callback()
@@ -541,6 +542,13 @@ dynamics::TrafficParticipant DecisionMaker::make_default_participant()
   return participant;
 }
 
+void DecisionMaker::publish_emergency_stop_started( bool started )
+{
+    std_msgs::msg::Bool msg;
+    msg.data = started;
+    publisher_emergency_stop_started->publish( msg );
+}
+
 void DecisionMaker::handle_passenger_request(
     const adore_ros2_msgs::msg::PassengerRequest& msg)
 {
@@ -564,6 +572,7 @@ void DecisionMaker::handle_passenger_request(
             passenger_emergency_stop = true;
             resume_ride_requested = false;
             RCLCPP_WARN(get_logger(), "Passenger emergency stop requested!");
+            publish_emergency_stop_started( true );
             changed = true;
             break;
 
@@ -575,6 +584,7 @@ void DecisionMaker::handle_passenger_request(
             RCLCPP_INFO(
                 get_logger(),
                 "Resume ride requested via PassengerRequest. Emergency stop cleared." );
+            publish_emergency_stop_started( false );
 
             break;
 
@@ -609,6 +619,9 @@ void DecisionMaker::handle_passenger_request(
             break;
             
         default:
+            RCLCPP_WARN( get_logger(),
+                "PassengerRequest type %u is not handled by the decision maker.",
+                static_cast<unsigned>( msg.type ) );
             return;
     }
 
